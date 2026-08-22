@@ -39,7 +39,38 @@
   </div>
 
   <script>
-    // 1. Configuración básica
+    // 1. Generador de Texturas estilo Pixel Art (16x16 pixels)
+    function createPixelTexture(baseColorHex, noiseFactor = 30) {
+      const canvas = document.createElement('canvas');
+      canvas.width = 16;
+      canvas.height = 16;
+      const ctx = canvas.getContext('2d');
+
+      // Extraer componentes R, G, B
+      const r = (baseColorHex >> 16) & 255;
+      const g = (baseColorHex >> 8) & 255;
+      const b = baseColorHex & 255;
+
+      // Dibujar cada píxel con ligera variación de ruido
+      for (let x = 0; x < 16; x++) {
+        for (let y = 0; y < 16; y++) {
+          const noise = (Math.random() - 0.5) * noiseFactor;
+          const nr = Math.min(255, Math.max(0, r + noise));
+          const ng = Math.min(255, Math.max(0, g + noise));
+          const nb = Math.min(255, Math.max(0, b + noise));
+          ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
+          ctx.fillRect(x, y, 1, 1);
+        }
+      }
+
+      const texture = new THREE.CanvasTexture(canvas);
+      // Desactivar filtrado borroso para mantener el estilo "pixel art" de Minecraft
+      texture.magFilter = THREE.NearestFilter;
+      texture.minFilter = THREE.NearestFilter;
+      return texture;
+    }
+
+    // 2. Configuración de la Escena
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
 
@@ -61,14 +92,17 @@
 
     camera.position.set(0, 5, 0);
 
-    // 2. Geometría y Materiales
+    // 3. Crear Materiales con las Texturas Pixeladas
+    const grassTopTex = createPixelTexture(0x55aa55, 40); // Hierba verde
+    const stoneTex = createPixelTexture(0x777777, 50);    // Piedra gris
+
+    const grassMat = new THREE.MeshLambertMaterial({ map: grassTopTex });
+    const stoneMat = new THREE.MeshLambertMaterial({ map: stoneTex });
+
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
-    const grassMat = new THREE.MeshLambertMaterial({ color: 0x55aa55 });
-    const stoneMat = new THREE.MeshLambertMaterial({ color: 0x888888 });
-    
     const blocks = [];
 
-    // Generar terreno
+    // Generar Terreno
     const CHUNK_SIZE = 12;
     const DEPTH = 10;
 
@@ -84,7 +118,7 @@
       }
     }
 
-    // 3. Físicas y Movimiento
+    // 4. Físicas y Movimiento
     const keys = {};
     document.addEventListener('keydown', (e) => keys[e.code] = true);
     document.addEventListener('keyup', (e) => keys[e.code] = false);
@@ -135,7 +169,7 @@
       }
     }
 
-    // 4. Romper y Colocar Bloques CORREGIDO
+    // 5. Romper y Colocar Bloques (Alineados)
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
@@ -153,11 +187,10 @@
           scene.remove(hit.object);
           blocks.splice(blocks.indexOf(hit.object), 1);
         } else if (e.button === 2) { 
-          // Clic Derecho: Poner bloque con alineación exacta
+          // Clic Derecho: Colocar bloque
           const targetBlock = hit.object;
           const normal = hit.face.normal;
 
-          // Calculamos la nueva posición sumando la normal de la cara seleccionada
           const newX = targetBlock.position.x + normal.x;
           const newY = targetBlock.position.y + normal.y;
           const newZ = targetBlock.position.z + normal.z;
