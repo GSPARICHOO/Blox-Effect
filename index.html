@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Mi Clon de Minecraft</title>
+  <style>
+    body { margin: 0; overflow: hidden; font-family: sans-serif; }
+    #crosshair {
+      position: absolute;
+      top: 50%; left: 50%;
+      width: 10px; height: 10px;
+      background: white;
+      transform: translate(-50%, -50%);
+      border-radius: 50%;
+      pointer-events: none;
+      mix-blend-mode: difference;
+    }
+    #instructions {
+      position: absolute;
+      top: 20px; left: 20px;
+      color: white;
+      background: rgba(0,0,0,0.6);
+      padding: 10px 15px;
+      border-radius: 8px;
+    }
+  </style>
+  <!-- Cargamos Three.js y los controles de cámara desde un CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
+</head>
+<body>
+
+  <div id="crosshair"></div>
+  <div id="instructions">
+    <b>Haz clic en la pantalla para jugar</b><br>
+    W, A, S, D: Moverse<br>
+    Clic Izquierdo: Poner bloque<br>
+    Clic Derecho: Quitar bloque
+  </div>
+
+  <script>
+    // 1. Configuración básica de la escena 3D
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87ceeb); // Cielo azul
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: true });
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    document.body.appendChild(renderer.domElement);
+
+    // Luces
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(10, 20, 10);
+    scene.add(dirLight);
+
+    // Controles de cámara estilo FPS
+    const controls = new THREE.PointerLockControls(camera, document.body);
+    document.addEventListener('click', () => controls.lock());
+
+    camera.position.set(5, 2, 5);
+
+    // 2. Geometría y materiales de los bloques
+    const blockGeo = new THREE.BoxGeometry(1, 1, 1);
+    const blockMat = new THREE.MeshLambertMaterial({ color: 0x55aa55 }); // Verde hierba
+    const blocks = [];
+
+    // Generar un terreno plano simple de 10x10 bloques
+    for (let x = -5; x < 5; x++) {
+      for (let z = -5; z < 5; z++) {
+        const cube = new THREE.Mesh(blockGeo, blockMat);
+        cube.position.set(x, 0, z);
+        scene.add(cube);
+        blocks.push(cube);
+      }
+    }
+
+    // 3. Sistema de movimiento
+    const keys = {};
+    document.addEventListener('keydown', (e) => keys[e.code] = true);
+    document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+    function updatePlayer() {
+      if (!controls.isLocked) return;
+      const speed = 0.1;
+      if (keys['KeyW']) controls.moveForward(speed);
+      if (keys['KeyS']) controls.moveForward(-speed);
+      if (keys['KeyA']) controls.moveRight(-speed);
+      if (keys['KeyD']) controls.moveRight(speed);
+    }
+
+    // 4. Romper y colocar bloques con el puntero
+    const raycaster = new THREE.Raycaster();
+    const mouse = new THREE.Vector2(0, 0); // Centro de la pantalla
+
+    document.addEventListener('mousedown', (e) => {
+      if (!controls.isLocked) return;
+
+      raycaster.setFromCamera(mouse, camera);
+      const intersects = raycaster.intersectObjects(blocks);
+
+      if (intersects.length > 0) {
+        const hit = intersects[0];
+
+        if (e.button === 0) { 
+          // Clic Izquierdo: Poner bloque al lado de la cara tocada
+          const newBlock = new THREE.Mesh(blockGeo, blockMat);
+          const newPos = hit.point.clone().add(hit.face.normal.clone().multiplyScalar(0.5)).floor().addScalar(0.5);
+          newBlock.position.copy(newPos);
+          scene.add(newBlock);
+          blocks.push(newBlock);
+        } else if (e.button === 2) { 
+          // Clic Derecho: Eliminar bloque
+          scene.remove(hit.object);
+          blocks.splice(blocks.indexOf(hit.object), 1);
+        }
+      }
+    });
+
+    // Desactivar menú contextual con clic derecho
+    document.addEventListener('contextmenu', e => e.preventDefault());
+
+    // Redimensionar pantalla
+    window.addEventListener('resize', () => {
+      camera.aspect = window.innerWidth / window.innerHeight;
+      camera.updateProjectionMatrix();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+    // Loop de renderizado principal
+    function animate() {
+      requestAnimationFrame(animate);
+      updatePlayer();
+      renderer.render(scene, camera);
+    }
+    animate();
+  </script>
+</body>
+</html>
