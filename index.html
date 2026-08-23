@@ -228,60 +228,61 @@
     }
 
     // 7. Físicas Corregidas (Bug de Autosalto Infinito Eliminado)
-    let velocityY = 0;
-    const gravity = -0.015;
-    const jumpStrength = 0.25;
-    let canJump = false;
-    const playerHeight = 1.6;
+   let velocityY = 0;
+const gravity = -0.012;
+const jumpStrength = 0.22;
+let isGrounded = false;
+const playerHeight = 1.6;
 
-    function updatePhysicsAndPlayer() {
-      if (!controls.isLocked) return;
+function updatePhysicsAndPlayer() {
+  if (!controls.isLocked) return;
 
-      const speed = 0.1;
-      if (keys['KeyW']) controls.moveForward(speed);
-      if (keys['KeyS']) controls.moveForward(-speed);
-      if (keys['KeyA']) controls.moveRight(-speed);
-      if (keys['KeyD']) controls.moveRight(speed);
+  const speed = 0.1;
+  if (keys['KeyW']) controls.moveForward(speed);
+  if (keys['KeyS']) controls.moveForward(-speed);
+  if (keys['KeyA']) controls.moveRight(-speed);
+  if (keys['KeyD']) controls.moveRight(speed);
 
-      // Gravedad constante
-      velocityY += gravity;
+  // Aplicar Gravedad
+  velocityY += gravity;
 
-      // Salto Manual
-      if (keys['Space'] && canJump) {
-        velocityY = jumpStrength;
-        canJump = false;
-      }
+  // Salto Manual
+  if (keys['Space'] && isGrounded) {
+    velocityY = jumpStrength;
+    isGrounded = false;
+  }
 
-      camera.position.y += velocityY;
+  // Mover cámara en Y
+  camera.position.y += velocityY;
 
-      // Raycast hacia abajo con límite preciso
-      const downRaycaster = new THREE.Raycaster(
-        camera.position,
-        new THREE.Vector3(0, -1, 0),
-        0,
-        playerHeight + 0.5 // Rango máximo acotado
-      );
+  // Detectar suelo únicamente si estamos cayendo
+  if (velocityY <= 0) {
+    const downRaycaster = new THREE.Raycaster(
+      camera.position,
+      new THREE.Vector3(0, -1, 0),
+      0,
+      playerHeight
+    );
 
-      const intersections = downRaycaster.intersectObjects(blocks);
+    const intersections = downRaycaster.intersectObjects(blocks);
 
-      if (intersections.length > 0) {
-        const hit = intersections[0];
-        const targetY = hit.point.y + playerHeight;
-
-        // Solo apoyamos los pies si la diferencia es menor a medio bloque (paso regular)
-        if (camera.position.y - targetY <= 0.5) {
-          camera.position.y = targetY;
-          velocityY = 0;
-          canJump = true;
-        }
-      }
-
-      // Respawn si se cae al vacío
-      if (camera.position.y < -30) {
-        camera.position.set(0, 5, 0);
-        velocityY = 0;
-      }
+    if (intersections.length > 0) {
+      const hit = intersections[0];
+      // Ajustar posición justo encima del bloque
+      camera.position.y = hit.point.y + playerHeight;
+      velocityY = 0;
+      isGrounded = true;
+    } else {
+      isGrounded = false;
     }
+  }
+
+  // Respawn si caes al vacío
+  if (camera.position.y < -30) {
+    camera.position.set(0, 5, 0);
+    velocityY = 0;
+  }
+}
 
     // 8. Ciclo Día / Noche
     let time = 0;
