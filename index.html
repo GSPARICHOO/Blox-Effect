@@ -133,30 +133,120 @@
 
   <script>
     // 1. Texturas Pixel Art
-    function createPixelTexture(baseColorHex, noiseFactor = 30) {
-      const canvas = document.createElement('canvas');
-      canvas.width = 16; canvas.height = 16;
-      const ctx = canvas.getContext('2d');
-      const r = (baseColorHex >> 16) & 255;
-      const g = (baseColorHex >> 8) & 255;
-      const b = baseColorHex & 255;
+    // 1. Generador de Texturas Auténticas de Minecraft Alpha 1.0.11
+function createAlphaTexture(type) {
+  const canvas = document.createElement('canvas');
+  canvas.width = 16;
+  canvas.height = 16;
+  const ctx = canvas.getContext('2d');
 
-      for (let x = 0; x < 16; x++) {
-        for (let y = 0; y < 16; y++) {
-          const noise = (Math.random() - 0.5) * noiseFactor;
-          const nr = Math.min(255, Math.max(0, r + noise));
-          const ng = Math.min(255, Math.max(0, g + noise));
-          const nb = Math.min(255, Math.max(0, b + noise));
-          ctx.fillStyle = `rgb(${nr},${ng},${nb})`;
-          ctx.fillRect(x, y, 1, 1);
+  // Paleta de Colores de Alpha 1.0.11
+  const alphaColors = {
+    grassTop: '#7cbd6b',    // Verde neón clásico de Alpha
+    dirt: '#866043',        // Tierra marrón oscuro
+    stone: '#737373',       // Piedra gris neutro
+    woodSide: '#675231',    // Corteza de roble
+    woodTop: '#9c8251',     // Anillos de madera
+    leaves: '#388b2a'       // Hojas oscuras estilo Alpha
+  };
+
+  for (let x = 0; x < 16; x++) {
+    for (let y = 0; y < 16; y++) {
+      let color = '#ffffff';
+      const rand = (Math.random() - 0.5) * 20;
+
+      if (type === 'grass_top') {
+        color = adjustColor(alphaColors.grassTop, rand);
+      } else if (type === 'dirt') {
+        color = adjustColor(alphaColors.dirt, rand);
+      } else if (type === 'stone') {
+        const noise = (Math.random() - 0.5) * 35;
+        color = adjustColor(alphaColors.stone, noise);
+      } else if (type === 'leaves') {
+        // Hojas con transparencia interna estilo Alpha
+        if ((x + y) % 3 === 0 && Math.random() > 0.4) {
+          color = adjustColor('#2a6b1f', rand);
+        } else {
+          color = adjustColor(alphaColors.leaves, rand);
+        }
+      } else if (type === 'wood_side') {
+        // Lineas verticales para la corteza
+        const stripe = (x % 4 === 0) ? -25 : 0;
+        color = adjustColor(alphaColors.woodSide, rand + stripe);
+      } else if (type === 'wood_top') {
+        // Anillos concéntricos de madera
+        const dist = Math.sqrt((x - 7.5)**2 + (y - 7.5)**2);
+        const ring = (Math.floor(dist) % 2 === 0) ? -15 : 10;
+        color = adjustColor(alphaColors.woodTop, ring);
+      } else if (type === 'grass_side') {
+        // Lateral de pasto: capa de pasto arriba, tierra abajo
+        if (y < 4 + Math.sin(x * 0.8) * 1.5) {
+          color = adjustColor(alphaColors.grassTop, rand);
+        } else {
+          color = adjustColor(alphaColors.dirt, rand);
         }
       }
-      const texture = new THREE.CanvasTexture(canvas);
-      texture.magFilter = THREE.NearestFilter;
-      texture.minFilter = THREE.NearestFilter;
-      return texture;
-    }
 
+      ctx.fillStyle = color;
+      ctx.fillRect(x, y, 1, 1);
+    }
+  }
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.magFilter = THREE.NearestFilter; // Mantiene los píxeles nítidos
+  texture.minFilter = THREE.NearestFilter;
+  return texture;
+}
+
+// Auxiliar para variar el brillo de los píxeles
+function adjustColor(hex, amount) {
+  let num = parseInt(hex.replace('#', ''), 16);
+  let r = Math.min(255, Math.max(0, (num >> 16) + amount));
+  let g = Math.min(255, Math.max(0, ((num >> 8) & 0x00FF) + amount));
+  let b = Math.min(255, Math.max(0, (num & 0x0000FF) + amount));
+  return `rgb(${Math.round(r)},${Math.round(g)},${Math.round(b)})`;
+}
+
+// 3. Bloques Multicaras de Alpha 1.0.11 (Textura arriba/lados/abajo)
+const texGrassTop = createAlphaTexture('grass_top');
+const texGrassSide = createAlphaTexture('grass_side');
+const texDirt = createAlphaTexture('dirt');
+const texStone = createAlphaTexture('stone');
+const texWoodSide = createAlphaTexture('wood_side');
+const texWoodTop = createAlphaTexture('wood_top');
+const texLeaves = createAlphaTexture('leaves');
+
+// Material del Bloque de Pasto (6 lados)
+const grassMaterials = [
+  new THREE.MeshLambertMaterial({ map: texGrassSide }), // Derecha
+  new THREE.MeshLambertMaterial({ map: texGrassSide }), // Izquierda
+  new THREE.MeshLambertMaterial({ map: texGrassTop }),  // Arriba
+  new THREE.MeshLambertMaterial({ map: texDirt }),      // Abajo
+  new THREE.MeshLambertMaterial({ map: texGrassSide }), // Frente
+  new THREE.MeshLambertMaterial({ map: texGrassSide })  // Atrás
+];
+
+// Material del Tronco de Madera (6 lados)
+const woodMaterials = [
+  new THREE.MeshLambertMaterial({ map: texWoodSide }),
+  new THREE.MeshLambertMaterial({ map: texWoodSide }),
+  new THREE.MeshLambertMaterial({ map: texWoodTop }),
+  new THREE.MeshLambertMaterial({ map: texWoodTop }),
+  new THREE.MeshLambertMaterial({ map: texWoodSide }),
+  new THREE.MeshLambertMaterial({ map: texWoodSide })
+];
+
+const dirtMat = new THREE.MeshLambertMaterial({ map: texDirt });
+const stoneMat = new THREE.MeshLambertMaterial({ map: texStone });
+const leavesMat = new THREE.MeshLambertMaterial({ map: texLeaves, transparent: true, alphaTest: 0.1 });
+
+const BLOCK_TYPES = {
+  1: { name: "Pasto", mat: grassMaterials },
+  2: { name: "Tierra", mat: dirtMat },
+  3: { name: "Piedra", mat: stoneMat },
+  4: { name: "Madera", mat: woodMaterials },
+  5: { name: "Hojas", mat: leavesMat }
+};
     // 2. Configuración de Escena
     const scene = new THREE.Scene();
     const dayColor = new THREE.Color(0x87ceeb);
