@@ -23,6 +23,46 @@
       padding: 10px 15px;
       border-radius: 8px;
     }
+    /* Estilos de la Hotbar / Inventario */
+    #hotbar {
+      position: absolute;
+      bottom: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 10px;
+      background: rgba(0, 0, 0, 0.6);
+      padding: 8px;
+      border-radius: 8px;
+    }
+    .slot {
+      width: 50px;
+      height: 50px;
+      border: 3px solid #555;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-weight: bold;
+      font-size: 14px;
+      background-size: cover;
+      box-sizing: border-box;
+      position: relative;
+    }
+    .slot.selected {
+      border-color: #fff;
+      box-shadow: 0 0 10px #fff;
+    }
+    .slot span {
+      position: absolute;
+      top: 2px;
+      left: 4px;
+      font-size: 11px;
+      text-shadow: 1px 1px 2px black;
+    }
+    #slot-1 { background-color: #55aa55; }
+    #slot-2 { background-color: #777777; }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
@@ -32,26 +72,29 @@
   <div id="crosshair"></div>
   <div id="instructions">
     <b>Haz clic en la pantalla para jugar</b><br>
-    W, A, S, D: Moverse<br>
-    Espacio: Saltar<br>
-    Clic Izquierdo: Romper bloque<br>
-    Clic Derecho: Poner bloque
+    W, A, S, D: Moverse | Espacio: Saltar<br>
+    <b>1, 2: Seleccionar Bloque</b><br>
+    Clic Izquierdo: Romper | Clic Derecho: Poner
+  </div>
+
+  <!-- UI del Inventario / Hotbar -->
+  <div id="hotbar">
+    <div id="slot-1" class="slot selected"><span>1</span>Pasto</div>
+    <div id="slot-2" class="slot"><span>2</span>Piedra</div>
   </div>
 
   <script>
-    // 1. Generador de Texturas estilo Pixel Art (16x16 pixels)
+    // 1. Texturas Pixel Art
     function createPixelTexture(baseColorHex, noiseFactor = 30) {
       const canvas = document.createElement('canvas');
       canvas.width = 16;
       canvas.height = 16;
       const ctx = canvas.getContext('2d');
 
-      // Extraer componentes R, G, B
       const r = (baseColorHex >> 16) & 255;
       const g = (baseColorHex >> 8) & 255;
       const b = baseColorHex & 255;
 
-      // Dibujar cada píxel con ligera variación de ruido
       for (let x = 0; x < 16; x++) {
         for (let y = 0; y < 16; y++) {
           const noise = (Math.random() - 0.5) * noiseFactor;
@@ -64,13 +107,12 @@
       }
 
       const texture = new THREE.CanvasTexture(canvas);
-      // Desactivar filtrado borroso para mantener el estilo "pixel art" de Minecraft
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
       return texture;
     }
 
-    // 2. Configuración de la Escena
+    // 2. Configuración de Escena
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
 
@@ -79,25 +121,29 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    // Luces
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
     scene.add(ambientLight);
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
     dirLight.position.set(10, 20, 10);
     scene.add(dirLight);
 
-    // Controles
     const controls = new THREE.PointerLockControls(camera, document.body);
     document.addEventListener('click', () => controls.lock());
 
     camera.position.set(0, 5, 0);
 
-    // 3. Crear Materiales con las Texturas Pixeladas
-    const grassTopTex = createPixelTexture(0x55aa55, 40); // Hierba verde
-    const stoneTex = createPixelTexture(0x777777, 50);    // Piedra gris
+    // 3. Materiales y Gestión de Inventario
+    const grassTopTex = createPixelTexture(0x55aa55, 40);
+    const stoneTex = createPixelTexture(0x777777, 50);
 
     const grassMat = new THREE.MeshLambertMaterial({ map: grassTopTex });
     const stoneMat = new THREE.MeshLambertMaterial({ map: stoneTex });
+
+    const BLOCK_TYPES = {
+      1: grassMat,
+      2: stoneMat
+    };
+    let selectedBlockType = 1; // Por defecto: Pasto
 
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
@@ -118,10 +164,23 @@
       }
     }
 
-    // 4. Físicas y Movimiento
+    // 4. Teclado, Físicas y Cambio de Bloque
     const keys = {};
-    document.addEventListener('keydown', (e) => keys[e.code] = true);
+    document.addEventListener('keydown', (e) => {
+      keys[e.code] = true;
+
+      // Selección de slots con las teclas 1 y 2
+      if (e.code === 'Digit1') selectSlot(1);
+      if (e.code === 'Digit2') selectSlot(2);
+    });
+    
     document.addEventListener('keyup', (e) => keys[e.code] = false);
+
+    function selectSlot(slotNumber) {
+      selectedBlockType = slotNumber;
+      document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('selected'));
+      document.getElementById(`slot-${slotNumber}`).classList.add('selected');
+    }
 
     let velocityY = 0;
     const gravity = -0.015;
@@ -169,7 +228,7 @@
       }
     }
 
-    // 5. Romper y Colocar Bloques (Alineados)
+    // 5. Interacción de Bloques con Selección Activa
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
@@ -183,11 +242,11 @@
         const hit = intersects[0];
 
         if (e.button === 0) { 
-          // Clic Izquierdo: Romper bloque
+          // Clic Izquierdo: Romper
           scene.remove(hit.object);
           blocks.splice(blocks.indexOf(hit.object), 1);
         } else if (e.button === 2) { 
-          // Clic Derecho: Colocar bloque
+          // Clic Derecho: Colocar el bloque seleccionado en la hotbar
           const targetBlock = hit.object;
           const normal = hit.face.normal;
 
@@ -195,7 +254,8 @@
           const newY = targetBlock.position.y + normal.y;
           const newZ = targetBlock.position.z + normal.z;
 
-          const newBlock = new THREE.Mesh(blockGeo, grassMat);
+          const currentMat = BLOCK_TYPES[selectedBlockType];
+          const newBlock = new THREE.Mesh(blockGeo, currentMat);
           newBlock.position.set(newX, newY, newZ);
           scene.add(newBlock);
           blocks.push(newBlock);
