@@ -122,18 +122,29 @@
 
     // 2. Configuración de Escena
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color(0x87ceeb);
+    
+    // Colores del cielo para la transición
+    const dayColor = new THREE.Color(0x87ceeb);   // Azul día
+    const nightColor = new THREE.Color(0x050510); // Azul oscuro noche
+    scene.background = dayColor.clone();
 
     const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
     const renderer = new THREE.WebGLRenderer({ antialias: true });
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
+    // Luces
     const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
     scene.add(ambientLight);
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.7);
-    dirLight.position.set(10, 20, 10);
-    scene.add(dirLight);
+
+    const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    scene.add(sunLight);
+
+    // Representación visual del Sol (bloque amarillo gigante)
+    const sunGeo = new THREE.BoxGeometry(4, 4, 4);
+    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
+    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    scene.add(sunMesh);
 
     const controls = new THREE.PointerLockControls(camera, document.body);
     document.addEventListener('click', () => controls.lock());
@@ -168,7 +179,7 @@
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
 
-    // 4. Generación del Terreno (Pasto, Tierra, Piedra)
+    // 4. Generación del Terreno
     const CHUNK_SIZE = 14;
     const DEPTH = 10;
 
@@ -189,14 +200,12 @@
 
     // 5. Generación del Árbol Único
     function createTree(treeX, treeZ) {
-      // Tronco
       for (let y = 1; y <= 4; y++) {
         const trunk = new THREE.Mesh(blockGeo, woodMat);
         trunk.position.set(treeX, y, treeZ);
         scene.add(trunk);
         blocks.push(trunk);
       }
-      // Hojas
       for (let lx = -1; lx <= 1; lx++) {
         for (let lz = -1; lz <= 1; lz++) {
           for (let ly = 4; ly <= 5; ly++) {
@@ -209,7 +218,7 @@
         }
       }
     }
-    createTree(3, 3); // Posicionado en X:3, Z:3
+    createTree(3, 3);
 
     // 6. Selección con Teclado
     const keys = {};
@@ -275,7 +284,34 @@
       }
     }
 
-    // 8. Colocar y Romper Bloques (con Soporte para Luces)
+    // 8. Lógica del Ciclo de Día y Noche
+    let time = 0;
+    const daySpeed = 0.003; // Velocidad del paso del tiempo
+
+    function updateDayNightCycle() {
+      time += daySpeed;
+
+      // Calcular posición circular del sol en el cielo
+      const radius = 80;
+      const sunX = Math.cos(time) * radius;
+      const sunY = Math.sin(time) * radius;
+
+      sunLight.position.set(sunX, sunY, 0);
+      sunMesh.position.set(sunX, sunY, 0);
+
+      // Interpolación de color de cielo y de la intensidad de la luz (0 a 1)
+      const sunHeight = Math.sin(time); // Positivo de día, negativo de noche
+      const dayFactor = Math.max(0, Math.min(1, (sunHeight + 0.2) / 0.7));
+
+      // Cambiar el color del cielo paulatinamente
+      scene.background.lerpColors(nightColor, dayColor, dayFactor);
+
+      // Ajustar intensidad de las luces
+      sunLight.intensity = dayFactor * 0.8;
+      ambientLight.intensity = 0.1 + (dayFactor * 0.4); // La noche mantiene un mínimo de luz ambiental
+    }
+
+    // 9. Colocar y Romper Bloques
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
@@ -289,15 +325,13 @@
         const hit = intersects[0];
 
         if (e.button === 0) { 
-          // Clic Izquierdo: Romper
           const target = hit.object;
           if (target.userData.light) {
-            scene.remove(target.userData.light); // Eliminar luz adjunta si era bloque emisor
+            scene.remove(target.userData.light);
           }
           scene.remove(target);
           blocks.splice(blocks.indexOf(target), 1);
         } else if (e.button === 2) { 
-          // Clic Derecho: Poner
           const targetBlock = hit.object;
           const normal = hit.face.normal;
 
@@ -309,7 +343,6 @@
           const newBlock = new THREE.Mesh(blockGeo, currentMat);
           newBlock.position.set(newX, newY, newZ);
 
-          // Si colocamos el bloque de luz (Slot 7)
           if (selectedBlockType === 7) {
             const pointLight = new THREE.PointLight(0xffaa22, 1.5, 8);
             pointLight.position.set(newX, newY, newZ);
@@ -334,6 +367,7 @@
     function animate() {
       requestAnimationFrame(animate);
       updatePhysicsAndPlayer();
+      updateDayNightCycle();
       renderer.render(scene, camera);
     }
     animate();
