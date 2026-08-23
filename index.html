@@ -92,7 +92,7 @@
   </div>
 
   <script>
-    // 1. Texturas Pixel Art (Verde Neón estilo Alpha 1.0.11)
+    // 1. Generador de Texturas Pixel Art
     function createPixelTexture(baseColorHex, noiseFactor = 30) {
       const canvas = document.createElement('canvas');
       canvas.width = 16;
@@ -147,7 +147,7 @@
 
     camera.position.set(0, 5, 0);
 
-    // 3. Materiales
+    // 3. Materiales de Bloques
     const grassMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x7cbd6b, 30) });
     const dirtMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x8b5a2b, 40) });
     const stoneMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x777777, 50) });
@@ -169,7 +169,7 @@
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
 
-    // 4. Terreno
+    // 4. Terreno Inicial
     const CHUNK_SIZE = 14;
     const DEPTH = 10;
 
@@ -188,7 +188,7 @@
       }
     }
 
-    // 5. Árbol Único
+    // 5. Arbol
     function createTree(treeX, treeZ) {
       for (let y = 1; y <= 4; y++) {
         const trunk = new THREE.Mesh(blockGeo, woodMat);
@@ -210,7 +210,7 @@
     }
     createTree(3, 3);
 
-    // 6. Controles Teclado
+    // 6. Eventos de Teclado
     const keys = {};
     document.addEventListener('keydown', (e) => {
       keys[e.code] = true;
@@ -227,62 +227,67 @@
       document.getElementById(`slot-${slotNumber}`).classList.add('selected');
     }
 
-    // 7. Físicas Corregidas (Bug de Autosalto Infinito Eliminado)
-   let velocityY = 0;
-const gravity = -0.012;
-const jumpStrength = 0.22;
-let isGrounded = false;
-const playerHeight = 1.6;
+    // 7. Físicas Definitivas (Piso exacto + Salto Reparado)
+    let velocityY = 0;
+    const gravity = -0.012;
+    const jumpStrength = 0.22;
+    let isGrounded = false;
+    const playerHeight = 1.6;
 
-function updatePhysicsAndPlayer() {
-  if (!controls.isLocked) return;
+    function updatePhysicsAndPlayer() {
+      if (!controls.isLocked) return;
 
-  const speed = 0.1;
-  if (keys['KeyW']) controls.moveForward(speed);
-  if (keys['KeyS']) controls.moveForward(-speed);
-  if (keys['KeyA']) controls.moveRight(-speed);
-  if (keys['KeyD']) controls.moveRight(speed);
+      const speed = 0.1;
+      if (keys['KeyW']) controls.moveForward(speed);
+      if (keys['KeyS']) controls.moveForward(-speed);
+      if (keys['KeyA']) controls.moveRight(-speed);
+      if (keys['KeyD']) controls.moveRight(speed);
 
-  // Aplicar Gravedad
-  velocityY += gravity;
+      // Gravedad
+      velocityY += gravity;
 
-  // Salto Manual
-  if (keys['Space'] && isGrounded) {
-    velocityY = jumpStrength;
-    isGrounded = false;
-  }
+      // Salto Manual
+      if (keys['Space'] && isGrounded) {
+        velocityY = jumpStrength;
+        isGrounded = false;
+      }
 
-  // Mover cámara en Y
-  camera.position.y += velocityY;
+      camera.position.y += velocityY;
 
-  // Detectar suelo únicamente si estamos cayendo
-  if (velocityY <= 0) {
-    const downRaycaster = new THREE.Raycaster(
-      camera.position,
-      new THREE.Vector3(0, -1, 0),
-      0,
-      playerHeight
-    );
+      // Detectar el suelo desde el centro inferior
+      const feetPosition = camera.position.clone();
+      feetPosition.y -= (playerHeight - 0.2);
 
-    const intersections = downRaycaster.intersectObjects(blocks);
+      if (velocityY <= 0) {
+        const downRaycaster = new THREE.Raycaster(
+          feetPosition,
+          new THREE.Vector3(0, -1, 0),
+          0,
+          0.35
+        );
 
-    if (intersections.length > 0) {
-      const hit = intersections[0];
-      // Ajustar posición justo encima del bloque
-      camera.position.y = hit.point.y + playerHeight;
-      velocityY = 0;
-      isGrounded = true;
-    } else {
-      isGrounded = false;
+        const intersections = downRaycaster.intersectObjects(blocks);
+
+        if (intersections.length > 0) {
+          const hit = intersections[0];
+          
+          // Verificar que sea la superficie superior del bloque
+          if (hit.face.normal.y > 0.5) {
+            camera.position.y = hit.point.y + playerHeight;
+            velocityY = 0;
+            isGrounded = true;
+          }
+        } else {
+          isGrounded = false;
+        }
+      }
+
+      // Respawn al caer
+      if (camera.position.y < -30) {
+        camera.position.set(0, 5, 0);
+        velocityY = 0;
+      }
     }
-  }
-
-  // Respawn si caes al vacío
-  if (camera.position.y < -30) {
-    camera.position.set(0, 5, 0);
-    velocityY = 0;
-  }
-}
 
     // 8. Ciclo Día / Noche
     let time = 0;
@@ -305,7 +310,7 @@ function updatePhysicsAndPlayer() {
       ambientLight.intensity = 0.1 + (dayFactor * 0.4);
     }
 
-    // 9. Romper y Colocar
+    // 9. Destrucción y Construcción
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
