@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi Clon de Minecraft - Alpha 1.0.11</title>
+  <title>Mi Clon de Minecraft - Supervivencia Alpha</title>
   <style>
     body { margin: 0; overflow: hidden; font-family: sans-serif; background: #000; }
     #crosshair {
@@ -23,6 +23,21 @@
       padding: 10px 15px;
       border-radius: 8px;
     }
+    #ui-container {
+      position: absolute;
+      bottom: 75px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 5px;
+    }
+    #health-bar {
+      display: flex;
+      gap: 4px;
+      font-size: 20px;
+    }
     #hotbar {
       position: absolute;
       bottom: 20px;
@@ -35,16 +50,17 @@
       border-radius: 8px;
     }
     .slot {
-      width: 48px;
-      height: 48px;
+      width: 50px;
+      height: 50px;
       border: 3px solid #555;
       border-radius: 6px;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
       color: white;
       font-weight: bold;
-      font-size: 11px;
+      font-size: 10px;
       text-align: center;
       box-sizing: border-box;
       position: relative;
@@ -53,20 +69,37 @@
       border-color: #fff;
       box-shadow: 0 0 8px #fff;
     }
-    .slot span {
+    .slot span.key {
       position: absolute;
       top: 2px;
       left: 4px;
-      font-size: 10px;
+      font-size: 9px;
       text-shadow: 1px 1px 2px black;
     }
-    #slot-1 { background-color: #7cbd6b; }
-    #slot-2 { background-color: #8b5a2b; }
-    #slot-3 { background-color: #777777; }
-    #slot-4 { background-color: #a0522d; }
-    #slot-5 { background-color: #b22222; }
-    #slot-6 { background-color: rgba(173, 216, 230, 0.7); }
-    #slot-7 { background-color: #ffaa00; }
+    .slot span.count {
+      position: absolute;
+      bottom: 2px;
+      right: 4px;
+      font-size: 11px;
+      color: #ffde59;
+      text-shadow: 1px 1px 2px black;
+    }
+    #game-over {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(150, 0, 0, 0.7);
+      color: white;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      font-size: 30px;
+    }
+    #game-over button {
+      margin-top: 20px; padding: 10px 20px;
+      font-size: 18px; cursor: pointer;
+      border: none; background: white; border-radius: 5px;
+    }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/PointerLockControls.js"></script>
@@ -77,28 +110,33 @@
   <div id="instructions">
     <b>Haz clic en la pantalla para jugar</b><br>
     W, A, S, D: Moverse | Espacio: Saltar<br>
-    <b>Teclas 1 - 7: Seleccionar Bloque</b><br>
-    Clic Izquierdo: Romper | Clic Derecho: Poner
+    <b>Teclas 1 - 5 / Rueda del mouse: Cambiar bloque</b><br>
+    Clic Izquierdo: Romper y Recolectar | Clic Derecho: Poner
+  </div>
+
+  <div id="ui-container">
+    <div id="health-bar">❤️❤️❤️❤️❤️❤️❤️❤️❤️❤️</div>
   </div>
 
   <div id="hotbar">
-    <div id="slot-1" class="slot selected"><span>1</span>Pasto</div>
-    <div id="slot-2" class="slot"><span>2</span>Tierra</div>
-    <div id="slot-3" class="slot"><span>3</span>Piedra</div>
-    <div id="slot-4" class="slot"><span>4</span>Madera</div>
-    <div id="slot-5" class="slot"><span>5</span>Ladrillo</div>
-    <div id="slot-6" class="slot"><span>6</span>Vidrio</div>
-    <div id="slot-7" class="slot"><span>7</span>Luz</div>
+    <div id="slot-1" class="slot selected"><span class="key">1</span>Pasto<span class="count" id="count-1">0</span></div>
+    <div id="slot-2" class="slot"><span class="key">2</span>Tierra<span class="count" id="count-2">0</span></div>
+    <div id="slot-3" class="slot"><span class="key">3</span>Piedra<span class="count" id="count-3">0</span></div>
+    <div id="slot-4" class="slot"><span class="key">4</span>Madera<span class="count" id="count-4">0</span></div>
+    <div id="slot-5" class="slot"><span class="key">5</span>Hojas<span class="count" id="count-5">0</span></div>
+  </div>
+
+  <div id="game-over">
+    <h1>¡HAS MUERTO!</h1>
+    <button onclick="respawnPlayer()">Reaparecer</button>
   </div>
 
   <script>
-    // 1. Generador de Texturas Pixel Art
+    // 1. Texturas Pixel Art
     function createPixelTexture(baseColorHex, noiseFactor = 30) {
       const canvas = document.createElement('canvas');
-      canvas.width = 16;
-      canvas.height = 16;
+      canvas.width = 16; canvas.height = 16;
       const ctx = canvas.getContext('2d');
-
       const r = (baseColorHex >> 16) & 255;
       const g = (baseColorHex >> 8) & 255;
       const b = baseColorHex & 255;
@@ -113,7 +151,6 @@
           ctx.fillRect(x, y, 1, 1);
         }
       }
-
       const texture = new THREE.CanvasTexture(canvas);
       texture.magFilter = THREE.NearestFilter;
       texture.minFilter = THREE.NearestFilter;
@@ -137,50 +174,58 @@
     const sunLight = new THREE.DirectionalLight(0xffffff, 0.8);
     scene.add(sunLight);
 
-    const sunGeo = new THREE.BoxGeometry(4, 4, 4);
-    const sunMat = new THREE.MeshBasicMaterial({ color: 0xffdd44 });
-    const sunMesh = new THREE.Mesh(sunGeo, sunMat);
+    const sunMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(4, 4, 4),
+      new THREE.MeshBasicMaterial({ color: 0xffdd44 })
+    );
     scene.add(sunMesh);
 
     const controls = new THREE.PointerLockControls(camera, document.body);
-    document.addEventListener('click', () => controls.lock());
+    document.addEventListener('click', () => {
+      if (health > 0) controls.lock();
+    });
 
-    // 3. Materiales de Bloques
+    // 3. Materiales y Tipos de Bloques
     const grassMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x7cbd6b, 30) });
     const dirtMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x8b5a2b, 40) });
     const stoneMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x777777, 50) });
     const woodMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0xa0522d, 35) });
     const leavesMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x4aed43, 40) });
-    const brickMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0xb22222, 45) });
-    const glassMat = new THREE.MeshLambertMaterial({ 
-      map: createPixelTexture(0xadd8e6, 20), 
-      transparent: true, 
-      opacity: 0.6 
-    });
-    const lightBlockMat = new THREE.MeshBasicMaterial({ color: 0xffdd66 });
 
     const BLOCK_TYPES = {
-      1: grassMat, 2: dirtMat, 3: stoneMat, 4: woodMat, 5: brickMat, 6: glassMat, 7: lightBlockMat
+      1: { name: "Pasto", mat: grassMat },
+      2: { name: "Tierra", mat: dirtMat },
+      3: { name: "Piedra", mat: stoneMat },
+      4: { name: "Madera", mat: woodMat },
+      5: { name: "Hojas", mat: leavesMat }
     };
-    let selectedBlockType = 1;
+
+    // Inventario del Jugador
+    const inventory = { 1: 5, 2: 10, 3: 0, 4: 0, 5: 0 }; // Inicias con algunos bloques
+    let selectedSlot = 1;
+
+    function updateInventoryUI() {
+      for (let i = 1; i <= 5; i++) {
+        document.getElementById(`count-${i}`).innerText = inventory[i];
+      }
+    }
+    updateInventoryUI();
 
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
 
-    // 4. Algoritmo de Generación de Terreno
+    // 4. Generador de Terreno
     function getTerrainHeight(x, z) {
-      // Usamos combinaciones de Seno y Coseno para simular montañas y valles
       const wave1 = Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3;
       const wave2 = Math.sin(x * 0.05 + z * 0.05) * 4;
-      const wave3 = Math.cos(x * 0.3) * 1.5;
-      
-      return Math.floor(wave1 + wave2 + wave3);
+      return Math.floor(wave1 + wave2);
     }
 
     function createTree(treeX, treeY, treeZ) {
       for (let y = 1; y <= 4; y++) {
         const trunk = new THREE.Mesh(blockGeo, woodMat);
         trunk.position.set(treeX, treeY + y, treeZ);
+        trunk.userData.typeId = 4;
         scene.add(trunk);
         blocks.push(trunk);
       }
@@ -190,6 +235,7 @@
             if (lx === 0 && lz === 0 && ly === 4) continue;
             const leaf = new THREE.Mesh(blockGeo, leavesMat);
             leaf.position.set(treeX + lx, treeY + ly, treeZ + lz);
+            leaf.userData.typeId = 5;
             scene.add(leaf);
             blocks.push(leaf);
           }
@@ -197,175 +243,187 @@
       }
     }
 
-    const WORLD_SIZE = 24; // Tamaño del mapa (24x24)
-
+    const WORLD_SIZE = 24;
     for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
       for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
         const height = getTerrainHeight(x, z);
+        for (let y = height; y >= height - 5; y--) {
+          let typeId = 3;
+          if (y === height) typeId = 1;
+          else if (y >= height - 2) typeId = 2;
 
-        // Generar desde la piedra profunda hasta la superficie
-        for (let y = height; y >= height - 6; y--) {
-          let material = stoneMat;
-
-          if (y === height) {
-            material = grassMat; // Capa superior
-          } else if (y >= height - 2) {
-            material = dirtMat;  // Capas intermedias de tierra
-          }
-
-          const cube = new THREE.Mesh(blockGeo, material);
+          const cube = new THREE.Mesh(blockGeo, BLOCK_TYPES[typeId].mat);
           cube.position.set(x, y, z);
+          cube.userData.typeId = typeId;
           scene.add(cube);
           blocks.push(cube);
         }
-
-        // 3% de probabilidad de generar un árbol sobre el pasto
         if (Math.random() < 0.03 && Math.abs(x) > 2 && Math.abs(z) > 2) {
           createTree(x, height, z);
         }
       }
     }
 
-    // Posicionar al jugador en una altura segura sobre el terreno inicial
-    const spawnY = getTerrainHeight(0, 0) + 3;
-    camera.position.set(0, spawnY, 0);
+    // 5. Sistema de Vida y Supervivencia
+    let health = 10;
+    const playerHeight = 1.6;
+    const playerRadius = 0.3;
 
-    // 5. Eventos de Teclado
+    function updateHealthUI() {
+      let heartsHtml = "";
+      for (let i = 0; i < health; i++) heartsHtml += "❤️";
+      for (let i = health; i < 10; i++) heartsHtml += "🖤";
+      document.getElementById('health-bar').innerHTML = heartsHtml;
+    }
+
+    function takeDamage(amount) {
+      if (health <= 0) return;
+      health = Math.max(0, health - amount);
+      updateHealthUI();
+
+      if (health <= 0) {
+        controls.unlock();
+        document.getElementById('game-over').style.display = 'flex';
+      }
+    }
+
+    function respawnPlayer() {
+      health = 10;
+      updateHealthUI();
+      document.getElementById('game-over').style.display = 'none';
+      const safeY = getTerrainHeight(0, 0) + 3;
+      camera.position.set(0, safeY, 0);
+      velocityY = 0;
+      controls.lock();
+    }
+
+    const safeY = getTerrainHeight(0, 0) + 3;
+    camera.position.set(0, safeY, 0);
+
+    // 6. Controles y Selección
     const keys = {};
     document.addEventListener('keydown', (e) => {
       keys[e.code] = true;
       if (e.code.startsWith('Digit')) {
         const num = parseInt(e.code.replace('Digit', ''));
-        if (num >= 1 && num <= 7) selectSlot(num);
+        if (num >= 1 && num <= 5) selectSlot(num);
       }
     });
     document.addEventListener('keyup', (e) => keys[e.code] = false);
 
+    // Rueda del ratón para cambiar de slot
+    window.addEventListener('wheel', (e) => {
+      if (e.deltaY > 0) {
+        selectedSlot = selectedSlot % 5 + 1;
+      } else {
+        selectedSlot = (selectedSlot - 2 + 5) % 5 + 1;
+      }
+      selectSlot(selectedSlot);
+    });
+
     function selectSlot(slotNumber) {
-      selectedBlockType = slotNumber;
+      selectedSlot = slotNumber;
       document.querySelectorAll('.slot').forEach(slot => slot.classList.remove('selected'));
       document.getElementById(`slot-${slotNumber}`).classList.add('selected');
     }
 
-    // 6. Físicas (Piso exacto + Salto Reparado)
-    // 6. Físicas con Colisión Lateral y Vertical
-let velocityY = 0;
-const gravity = -0.012;
-const jumpStrength = 0.22;
-let isGrounded = false;
-const playerHeight = 1.6;
-const playerRadius = 0.3; // Radio de colisión del jugador
+    // 7. Físicas con Daño por Caída
+    let velocityY = 0;
+    const gravity = -0.012;
+    const jumpStrength = 0.22;
+    let isGrounded = false;
+    let lastFallVelocity = 0;
 
-function checkHorizontalCollision(moveVector) {
-  // Disparamos rayos a la altura de la cintura y los pies
-  const checkHeights = [0.2, 1.0]; 
-  
-  for (let heightOffset of checkHeights) {
-    const rayOrigin = camera.position.clone();
-    rayOrigin.y -= (playerHeight - heightOffset);
-
-    const raycaster = new THREE.Raycaster(rayOrigin, moveVector.clone().normalize(), 0, playerRadius + 0.1);
-    const intersections = raycaster.intersectObjects(blocks);
-
-    if (intersections.length > 0) {
-      return true; // Hay una pared/árbol enfrente
+    function checkHorizontalCollision(moveVector) {
+      const checkHeights = [0.2, 1.0]; 
+      for (let heightOffset of checkHeights) {
+        const rayOrigin = camera.position.clone();
+        rayOrigin.y -= (playerHeight - heightOffset);
+        const raycaster = new THREE.Raycaster(rayOrigin, moveVector.clone().normalize(), 0, playerRadius + 0.1);
+        if (raycaster.intersectObjects(blocks).length > 0) return true;
+      }
+      return false;
     }
-  }
-  return false;
-}
 
-function updatePhysicsAndPlayer() {
-  if (!controls.isLocked) return;
+    function updatePhysicsAndPlayer() {
+      if (!controls.isLocked || health <= 0) return;
 
-  const speed = 0.1;
-  const moveDirection = new THREE.Vector3();
+      const speed = 0.1;
+      const moveDirection = new THREE.Vector3();
 
-  // Calcular dirección de movimiento basada en la cámara
-  if (keys['KeyW']) moveDirection.z += 1;
-  if (keys['KeyS']) moveDirection.z -= 1;
-  if (keys['KeyA']) moveDirection.x -= 1;
-  if (keys['KeyD']) moveDirection.x += 1;
+      if (keys['KeyW']) moveDirection.z += 1;
+      if (keys['KeyS']) moveDirection.z -= 1;
+      if (keys['KeyA']) moveDirection.x -= 1;
+      if (keys['KeyD']) moveDirection.x += 1;
 
-  if (moveDirection.lengthSq() > 0) {
-    moveDirection.normalize();
+      if (moveDirection.lengthSq() > 0) {
+        moveDirection.normalize();
+        if (keys['KeyW'] || keys['KeyS']) {
+          const forwardDir = new THREE.Vector3();
+          camera.getWorldDirection(forwardDir);
+          forwardDir.y = 0;
+          forwardDir.normalize();
+          if (keys['KeyS']) forwardDir.negate();
+          if (!checkHorizontalCollision(forwardDir)) controls.moveForward(keys['KeyW'] ? speed : -speed);
+        }
+        if (keys['KeyA'] || keys['KeyD']) {
+          const sideDir = new THREE.Vector3();
+          camera.getWorldDirection(sideDir);
+          sideDir.y = 0;
+          sideDir.cross(camera.up).normalize();
+          if (keys['KeyA']) sideDir.negate();
+          if (!checkHorizontalCollision(sideDir)) controls.moveRight(keys['KeyD'] ? speed : -speed);
+        }
+      }
 
-    // Movimiento Forward / Backward
-    if (keys['KeyW'] || keys['KeyS']) {
-      const forwardDir = new THREE.Vector3();
-      camera.getWorldDirection(forwardDir);
-      forwardDir.y = 0; // Ignorar inclinación de la mirada
-      forwardDir.normalize();
-      if (keys['KeyS']) forwardDir.negate();
+      velocityY += gravity;
 
-      if (!checkHorizontalCollision(forwardDir)) {
-        controls.moveForward(keys['KeyW'] ? speed : -speed);
+      if (keys['Space'] && isGrounded) {
+        velocityY = jumpStrength;
+        isGrounded = false;
+      }
+
+      camera.position.y += velocityY;
+
+      // Guardar velocidad de caída
+      if (velocityY < 0) lastFallVelocity = velocityY;
+
+      const feetPosition = camera.position.clone();
+      feetPosition.y -= (playerHeight - 0.2);
+
+      if (velocityY <= 0) {
+        const downRaycaster = new THREE.Raycaster(feetPosition, new THREE.Vector3(0, -1, 0), 0, 0.35);
+        const intersections = downRaycaster.intersectObjects(blocks);
+
+        if (intersections.length > 0) {
+          const hit = intersections[0];
+          if (hit.face.normal.y > 0.5) {
+            // Cálculo de Daño por Caída
+            if (lastFallVelocity < -0.38) {
+              const fallDamage = Math.floor(Math.abs(lastFallVelocity) * 18);
+              takeDamage(fallDamage);
+            }
+            lastFallVelocity = 0;
+
+            camera.position.y = hit.point.y + playerHeight;
+            velocityY = 0;
+            isGrounded = true;
+          }
+        } else {
+          isGrounded = false;
+        }
+      }
+
+      // Muerte por caída al vacío
+      if (camera.position.y < -30) {
+        takeDamage(10);
       }
     }
 
-    // Movimiento Lateral (Strafe)
-    if (keys['KeyA'] || keys['KeyD']) {
-      const sideDir = new THREE.Vector3();
-      camera.getWorldDirection(sideDir);
-      sideDir.y = 0;
-      sideDir.cross(camera.up).normalize();
-      if (keys['KeyA']) sideDir.negate();
-
-      if (!checkHorizontalCollision(sideDir)) {
-        controls.moveRight(keys['KeyD'] ? speed : -speed);
-      }
-    }
-  }
-
-  // Gravedad
-  velocityY += gravity;
-
-  // Salto
-  if (keys['Space'] && isGrounded) {
-    velocityY = jumpStrength;
-    isGrounded = false;
-  }
-
-  camera.position.y += velocityY;
-
-  // Detección de Suelo
-  const feetPosition = camera.position.clone();
-  feetPosition.y -= (playerHeight - 0.2);
-
-  if (velocityY <= 0) {
-    const downRaycaster = new THREE.Raycaster(
-      feetPosition,
-      new THREE.Vector3(0, -1, 0),
-      0,
-      0.35
-    );
-
-    const intersections = downRaycaster.intersectObjects(blocks);
-
-    if (intersections.length > 0) {
-      const hit = intersections[0];
-      if (hit.face.normal.y > 0.5) {
-        camera.position.y = hit.point.y + playerHeight;
-        velocityY = 0;
-        isGrounded = true;
-      }
-    } else {
-      isGrounded = false;
-    }
-  }
-
-  // Respawn
-  if (camera.position.y < -30) {
-    const safeY = getTerrainHeight(0, 0) + 3;
-    camera.position.set(0, safeY, 0);
-    velocityY = 0;
-  }
-}
-    // 7. Ciclo Día / Noche
+    // 8. Ciclo Día / Noche
     let time = 0;
-    const daySpeed = 0.003;
-
     function updateDayNightCycle() {
-      time += daySpeed;
+      time += 0.002;
       const radius = 80;
       const sunX = Math.cos(time) * radius;
       const sunY = Math.sin(time) * radius;
@@ -373,20 +431,18 @@ function updatePhysicsAndPlayer() {
       sunLight.position.set(sunX, sunY, 0);
       sunMesh.position.set(sunX, sunY, 0);
 
-      const sunHeight = Math.sin(time);
-      const dayFactor = Math.max(0, Math.min(1, (sunHeight + 0.2) / 0.7));
-
+      const dayFactor = Math.max(0, Math.min(1, (Math.sin(time) + 0.2) / 0.7));
       scene.background.lerpColors(nightColor, dayColor, dayFactor);
       sunLight.intensity = dayFactor * 0.8;
       ambientLight.intensity = 0.1 + (dayFactor * 0.4);
     }
 
-    // 8. Destrucción y Construcción
+    // 9. Romper (Recolectar) y Poner Bloques
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
     document.addEventListener('mousedown', (e) => {
-      if (!controls.isLocked) return;
+      if (!controls.isLocked || health <= 0) return;
 
       raycaster.setFromCamera(mouse, camera);
       const intersects = raycaster.intersectObjects(blocks);
@@ -394,34 +450,37 @@ function updatePhysicsAndPlayer() {
       if (intersects.length > 0) {
         const hit = intersects[0];
 
+        // Clic Izquierdo: Romper bloque y sumarlo al inventario
         if (e.button === 0) { 
           const target = hit.object;
-          if (target.userData.light) {
-            scene.remove(target.userData.light);
-          }
+          const typeId = target.userData.typeId || 1;
+
+          inventory[typeId] = (inventory[typeId] || 0) + 1;
+          updateInventoryUI();
+
           scene.remove(target);
           blocks.splice(blocks.indexOf(target), 1);
-        } else if (e.button === 2) { 
-          const targetBlock = hit.object;
-          const normal = hit.face.normal;
+        } 
+        // Clic Derecho: Poner bloque restando del inventario
+        else if (e.button === 2) { 
+          if (inventory[selectedSlot] > 0) {
+            const targetBlock = hit.object;
+            const normal = hit.face.normal;
 
-          const newX = targetBlock.position.x + normal.x;
-          const newY = targetBlock.position.y + normal.y;
-          const newZ = targetBlock.position.z + normal.z;
+            const newX = targetBlock.position.x + normal.x;
+            const newY = targetBlock.position.y + normal.y;
+            const newZ = targetBlock.position.z + normal.z;
 
-          const currentMat = BLOCK_TYPES[selectedBlockType];
-          const newBlock = new THREE.Mesh(blockGeo, currentMat);
-          newBlock.position.set(newX, newY, newZ);
+            const newBlock = new THREE.Mesh(blockGeo, BLOCK_TYPES[selectedSlot].mat);
+            newBlock.position.set(newX, newY, newZ);
+            newBlock.userData.typeId = selectedSlot;
 
-          if (selectedBlockType === 7) {
-            const pointLight = new THREE.PointLight(0xffaa22, 1.5, 8);
-            pointLight.position.set(newX, newY, newZ);
-            scene.add(pointLight);
-            newBlock.userData.light = pointLight;
+            scene.add(newBlock);
+            blocks.push(newBlock);
+
+            inventory[selectedSlot]--;
+            updateInventoryUI();
           }
-
-          scene.add(newBlock);
-          blocks.push(newBlock);
         }
       }
     });
