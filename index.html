@@ -145,8 +145,6 @@
     const controls = new THREE.PointerLockControls(camera, document.body);
     document.addEventListener('click', () => controls.lock());
 
-    camera.position.set(0, 5, 0);
-
     // 3. Materiales de Bloques
     const grassMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x7cbd6b, 30) });
     const dirtMat = new THREE.MeshLambertMaterial({ map: createPixelTexture(0x8b5a2b, 40) });
@@ -169,30 +167,20 @@
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
 
-    // 4. Terreno Inicial
-    const CHUNK_SIZE = 14;
-    const DEPTH = 10;
-
-    for (let x = -CHUNK_SIZE / 2; x < CHUNK_SIZE / 2; x++) {
-      for (let z = -CHUNK_SIZE / 2; z < CHUNK_SIZE / 2; z++) {
-        for (let y = 0; y > -DEPTH; y--) {
-          let material = stoneMat;
-          if (y === 0) material = grassMat;
-          else if (y === -1 || y === -2) material = dirtMat;
-
-          const cube = new THREE.Mesh(blockGeo, material);
-          cube.position.set(x, y, z);
-          scene.add(cube);
-          blocks.push(cube);
-        }
-      }
+    // 4. Algoritmo de Generación de Terreno
+    function getTerrainHeight(x, z) {
+      // Usamos combinaciones de Seno y Coseno para simular montañas y valles
+      const wave1 = Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3;
+      const wave2 = Math.sin(x * 0.05 + z * 0.05) * 4;
+      const wave3 = Math.cos(x * 0.3) * 1.5;
+      
+      return Math.floor(wave1 + wave2 + wave3);
     }
 
-    // 5. Arbol
-    function createTree(treeX, treeZ) {
+    function createTree(treeX, treeY, treeZ) {
       for (let y = 1; y <= 4; y++) {
         const trunk = new THREE.Mesh(blockGeo, woodMat);
-        trunk.position.set(treeX, y, treeZ);
+        trunk.position.set(treeX, treeY + y, treeZ);
         scene.add(trunk);
         blocks.push(trunk);
       }
@@ -201,16 +189,48 @@
           for (let ly = 4; ly <= 5; ly++) {
             if (lx === 0 && lz === 0 && ly === 4) continue;
             const leaf = new THREE.Mesh(blockGeo, leavesMat);
-            leaf.position.set(treeX + lx, ly, treeZ + lz);
+            leaf.position.set(treeX + lx, treeY + ly, treeZ + lz);
             scene.add(leaf);
             blocks.push(leaf);
           }
         }
       }
     }
-    createTree(3, 3);
 
-    // 6. Eventos de Teclado
+    const WORLD_SIZE = 24; // Tamaño del mapa (24x24)
+
+    for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
+      for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
+        const height = getTerrainHeight(x, z);
+
+        // Generar desde la piedra profunda hasta la superficie
+        for (let y = height; y >= height - 6; y--) {
+          let material = stoneMat;
+
+          if (y === height) {
+            material = grassMat; // Capa superior
+          } else if (y >= height - 2) {
+            material = dirtMat;  // Capas intermedias de tierra
+          }
+
+          const cube = new THREE.Mesh(blockGeo, material);
+          cube.position.set(x, y, z);
+          scene.add(cube);
+          blocks.push(cube);
+        }
+
+        // 3% de probabilidad de generar un árbol sobre el pasto
+        if (Math.random() < 0.03 && Math.abs(x) > 2 && Math.abs(z) > 2) {
+          createTree(x, height, z);
+        }
+      }
+    }
+
+    // Posicionar al jugador en una altura segura sobre el terreno inicial
+    const spawnY = getTerrainHeight(0, 0) + 3;
+    camera.position.set(0, spawnY, 0);
+
+    // 5. Eventos de Teclado
     const keys = {};
     document.addEventListener('keydown', (e) => {
       keys[e.code] = true;
@@ -227,7 +247,7 @@
       document.getElementById(`slot-${slotNumber}`).classList.add('selected');
     }
 
-    // 7. Físicas Definitivas (Piso exacto + Salto Reparado)
+    // 6. Físicas (Piso exacto + Salto Reparado)
     let velocityY = 0;
     const gravity = -0.012;
     const jumpStrength = 0.22;
@@ -271,7 +291,6 @@
         if (intersections.length > 0) {
           const hit = intersections[0];
           
-          // Verificar que sea la superficie superior del bloque
           if (hit.face.normal.y > 0.5) {
             camera.position.y = hit.point.y + playerHeight;
             velocityY = 0;
@@ -282,14 +301,15 @@
         }
       }
 
-      // Respawn al caer
+      // Respawn si caes al vacío
       if (camera.position.y < -30) {
-        camera.position.set(0, 5, 0);
+        const safeY = getTerrainHeight(0, 0) + 3;
+        camera.position.set(0, safeY, 0);
         velocityY = 0;
       }
     }
 
-    // 8. Ciclo Día / Noche
+    // 7. Ciclo Día / Noche
     let time = 0;
     const daySpeed = 0.003;
 
@@ -310,7 +330,7 @@
       ambientLight.intensity = 0.1 + (dayFactor * 0.4);
     }
 
-    // 9. Destrucción y Construcción
+    // 8. Destrucción y Construcción
     const raycaster = new THREE.Raycaster();
     const mouse = new THREE.Vector2(0, 0);
 
