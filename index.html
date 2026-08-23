@@ -248,67 +248,118 @@
     }
 
     // 6. Físicas (Piso exacto + Salto Reparado)
-    let velocityY = 0;
-    const gravity = -0.012;
-    const jumpStrength = 0.22;
-    let isGrounded = false;
-    const playerHeight = 1.6;
+    // 6. Físicas con Colisión Lateral y Vertical
+let velocityY = 0;
+const gravity = -0.012;
+const jumpStrength = 0.22;
+let isGrounded = false;
+const playerHeight = 1.6;
+const playerRadius = 0.3; // Radio de colisión del jugador
 
-    function updatePhysicsAndPlayer() {
-      if (!controls.isLocked) return;
+function checkHorizontalCollision(moveVector) {
+  // Disparamos rayos a la altura de la cintura y los pies
+  const checkHeights = [0.2, 1.0]; 
+  
+  for (let heightOffset of checkHeights) {
+    const rayOrigin = camera.position.clone();
+    rayOrigin.y -= (playerHeight - heightOffset);
 
-      const speed = 0.1;
-      if (keys['KeyW']) controls.moveForward(speed);
-      if (keys['KeyS']) controls.moveForward(-speed);
-      if (keys['KeyA']) controls.moveRight(-speed);
-      if (keys['KeyD']) controls.moveRight(speed);
+    const raycaster = new THREE.Raycaster(rayOrigin, moveVector.clone().normalize(), 0, playerRadius + 0.1);
+    const intersections = raycaster.intersectObjects(blocks);
 
-      // Gravedad
-      velocityY += gravity;
+    if (intersections.length > 0) {
+      return true; // Hay una pared/árbol enfrente
+    }
+  }
+  return false;
+}
 
-      // Salto Manual
-      if (keys['Space'] && isGrounded) {
-        velocityY = jumpStrength;
-        isGrounded = false;
-      }
+function updatePhysicsAndPlayer() {
+  if (!controls.isLocked) return;
 
-      camera.position.y += velocityY;
+  const speed = 0.1;
+  const moveDirection = new THREE.Vector3();
 
-      // Detectar el suelo desde el centro inferior
-      const feetPosition = camera.position.clone();
-      feetPosition.y -= (playerHeight - 0.2);
+  // Calcular dirección de movimiento basada en la cámara
+  if (keys['KeyW']) moveDirection.z += 1;
+  if (keys['KeyS']) moveDirection.z -= 1;
+  if (keys['KeyA']) moveDirection.x -= 1;
+  if (keys['KeyD']) moveDirection.x += 1;
 
-      if (velocityY <= 0) {
-        const downRaycaster = new THREE.Raycaster(
-          feetPosition,
-          new THREE.Vector3(0, -1, 0),
-          0,
-          0.35
-        );
+  if (moveDirection.lengthSq() > 0) {
+    moveDirection.normalize();
 
-        const intersections = downRaycaster.intersectObjects(blocks);
+    // Movimiento Forward / Backward
+    if (keys['KeyW'] || keys['KeyS']) {
+      const forwardDir = new THREE.Vector3();
+      camera.getWorldDirection(forwardDir);
+      forwardDir.y = 0; // Ignorar inclinación de la mirada
+      forwardDir.normalize();
+      if (keys['KeyS']) forwardDir.negate();
 
-        if (intersections.length > 0) {
-          const hit = intersections[0];
-          
-          if (hit.face.normal.y > 0.5) {
-            camera.position.y = hit.point.y + playerHeight;
-            velocityY = 0;
-            isGrounded = true;
-          }
-        } else {
-          isGrounded = false;
-        }
-      }
-
-      // Respawn si caes al vacío
-      if (camera.position.y < -30) {
-        const safeY = getTerrainHeight(0, 0) + 3;
-        camera.position.set(0, safeY, 0);
-        velocityY = 0;
+      if (!checkHorizontalCollision(forwardDir)) {
+        controls.moveForward(keys['KeyW'] ? speed : -speed);
       }
     }
 
+    // Movimiento Lateral (Strafe)
+    if (keys['KeyA'] || keys['KeyD']) {
+      const sideDir = new THREE.Vector3();
+      camera.getWorldDirection(sideDir);
+      sideDir.y = 0;
+      sideDir.cross(camera.up).normalize();
+      if (keys['KeyA']) sideDir.negate();
+
+      if (!checkHorizontalCollision(sideDir)) {
+        controls.moveRight(keys['KeyD'] ? speed : -speed);
+      }
+    }
+  }
+
+  // Gravedad
+  velocityY += gravity;
+
+  // Salto
+  if (keys['Space'] && isGrounded) {
+    velocityY = jumpStrength;
+    isGrounded = false;
+  }
+
+  camera.position.y += velocityY;
+
+  // Detección de Suelo
+  const feetPosition = camera.position.clone();
+  feetPosition.y -= (playerHeight - 0.2);
+
+  if (velocityY <= 0) {
+    const downRaycaster = new THREE.Raycaster(
+      feetPosition,
+      new THREE.Vector3(0, -1, 0),
+      0,
+      0.35
+    );
+
+    const intersections = downRaycaster.intersectObjects(blocks);
+
+    if (intersections.length > 0) {
+      const hit = intersections[0];
+      if (hit.face.normal.y > 0.5) {
+        camera.position.y = hit.point.y + playerHeight;
+        velocityY = 0;
+        isGrounded = true;
+      }
+    } else {
+      isGrounded = false;
+    }
+  }
+
+  // Respawn
+  if (camera.position.y < -30) {
+    const safeY = getTerrainHeight(0, 0) + 3;
+    camera.position.set(0, safeY, 0);
+    velocityY = 0;
+  }
+}
     // 7. Ciclo Día / Noche
     let time = 0;
     const daySpeed = 0.003;
