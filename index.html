@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi Clon de Minecraft - Pixel + Sprint</title>
+  <title>Mi Clon de Minecraft - Hitbox Corregida</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -28,7 +28,6 @@
       flex-direction: column; align-items: center; gap: 5px; z-index: 10;
     }
 
-    /* Barren de corazones pixelados */
     #health-bar { 
       display: flex; 
       gap: 4px;
@@ -193,28 +192,43 @@
 
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
+    const blockMap = new Map();
+
+    function getBlockKey(x, y, z) {
+      return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
+    }
 
     function getTerrainHeight(x, z) {
       return Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3 + Math.sin(x * 0.05 + z * 0.05) * 4);
     }
 
+    function addBlockToWorld(x, y, z, typeId) {
+      const cube = new THREE.Mesh(blockGeo, BLOCK_TYPES[typeId].mat);
+      cube.position.set(x, y, z);
+      cube.userData.typeId = typeId;
+      scene.add(cube);
+      blocks.push(cube);
+      blockMap.set(getBlockKey(x, y, z), cube);
+      return cube;
+    }
+
+    function removeBlockFromWorld(block) {
+      const pos = block.position;
+      blockMap.delete(getBlockKey(pos.x, pos.y, pos.z));
+      scene.remove(block);
+      const index = blocks.indexOf(block);
+      if (index > -1) blocks.splice(index, 1);
+    }
+
     function createTree(treeX, treeY, treeZ) {
       for (let y = 1; y <= 4; y++) {
-        const trunk = new THREE.Mesh(blockGeo, BLOCK_TYPES[4].mat);
-        trunk.position.set(treeX, treeY + y, treeZ);
-        trunk.userData.typeId = 4;
-        scene.add(trunk);
-        blocks.push(trunk);
+        addBlockToWorld(treeX, treeY + y, treeZ, 4);
       }
       for (let lx = -1; lx <= 1; lx++) {
         for (let lz = -1; lz <= 1; lz++) {
           for (let ly = 4; ly <= 5; ly++) {
             if (lx === 0 && lz === 0 && ly === 4) continue;
-            const leaf = new THREE.Mesh(blockGeo, BLOCK_TYPES[5].mat);
-            leaf.position.set(treeX + lx, treeY + ly, treeZ + lz);
-            leaf.userData.typeId = 5;
-            scene.add(leaf);
-            blocks.push(leaf);
+            addBlockToWorld(treeX + lx, treeY + ly, treeZ + lz, 5);
           }
         }
       }
@@ -229,11 +243,7 @@
           if (y === height) typeId = 1;
           else if (y >= height - 2) typeId = 2;
 
-          const cube = new THREE.Mesh(blockGeo, BLOCK_TYPES[typeId].mat);
-          cube.position.set(x, y, z);
-          cube.userData.typeId = typeId;
-          scene.add(cube);
-          blocks.push(cube);
+          addBlockToWorld(x, y, z, typeId);
         }
         if (Math.random() < 0.03 && Math.abs(x) > 2 && Math.abs(z) > 2) {
           createTree(x, height, z);
@@ -247,7 +257,6 @@
     const playerRadius = 0.3;
     camera.position.set(0, getTerrainHeight(0, 0) + 5, 0);
 
-    // SVG Pixel Art de Corazón (Rojo / Vacío)
     const redHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8" fill="none"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#ff2222"/></svg>`;
     const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8" fill="none"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
 
@@ -304,22 +313,58 @@
     const jumpStrength = 0.20;
     let isGrounded = false;
 
-    function checkHorizontalCollision(dirVector) {
-      const rayOrigin = camera.position.clone();
-      rayOrigin.y -= 0.8;
-      const raycaster = new THREE.Raycaster(rayOrigin, dirVector.clone().normalize(), 0, playerRadius + 0.1);
-      return raycaster.intersectObjects(blocks).length > 0;
+    // Sistema de Colisión AABB por Ejes
+    function getPlayerAABB(pos) {
+      return {
+        minX: pos.x - playerRadius,
+        maxX: pos.x + playerRadius,
+        minY: pos.y - playerHeight,
+        maxY: pos.y,
+        minZ: pos.z - playerRadius,
+        maxZ: pos.z + playerRadius
+      };
+    }
+
+    function isColliding(box1, box2) {
+      return (
+        box1.minX < box2.maxX && box1.maxX > box2.minX &&
+        box1.minY < box2.maxY && box1.maxY > box2.minY &&
+        box1.minZ < box2.maxZ && box1.maxZ > box2.minZ
+      );
+    }
+
+    function getNearbyBlockBoxes(pos) {
+      const blockBoxes = [];
+      const minX = Math.floor(pos.x - 1);
+      const maxX = Math.ceil(pos.x + 1);
+      const minY = Math.floor(pos.y - playerHeight - 1);
+      const maxY = Math.ceil(pos.y + 1);
+      const minZ = Math.floor(pos.z - 1);
+      const maxZ = Math.ceil(pos.z + 1);
+
+      for (let x = minX; x <= maxX; x++) {
+        for (let y = minY; y <= maxY; y++) {
+          for (let z = minZ; z <= maxZ; z++) {
+            if (blockMap.has(getBlockKey(x, y, z))) {
+              blockBoxes.push({
+                minX: x - 0.5, maxX: x + 0.5,
+                minY: y - 0.5, maxY: y + 0.5,
+                minZ: z - 0.5, maxZ: z + 0.5
+              });
+            }
+          }
+        }
+      }
+      return blockBoxes;
     }
 
     function updatePhysics() {
       if (!isLocked || health <= 0) return;
 
-      // Velocidad base o velocidad con Sprint (Shift)
       const baseSpeed = 0.09;
-      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? baseSpeed * 1.6 : baseSpeed;
+      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? baseSpeed * 1.5 : baseSpeed;
 
       const moveVector = new THREE.Vector3();
-
       if (keys['KeyW']) moveVector.z -= 1;
       if (keys['KeyS']) moveVector.z += 1;
       if (keys['KeyA']) moveVector.x -= 1;
@@ -328,12 +373,34 @@
       if (moveVector.lengthSq() > 0) {
         moveVector.normalize();
         moveVector.applyEuler(new THREE.Euler(0, yaw, 0));
+      }
 
-        if (!checkHorizontalCollision(moveVector)) {
-          camera.position.addScaledVector(moveVector, speed);
+      // 1. Movimiento en X
+      camera.position.x += moveVector.x * speed;
+      let playerBox = getPlayerAABB(camera.position);
+      let nearbyBlocks = getNearbyBlockBoxes(camera.position);
+
+      for (const b of nearbyBlocks) {
+        if (isColliding(playerBox, b)) {
+          if (moveVector.x > 0) camera.position.x = b.minX - playerRadius;
+          else if (moveVector.x < 0) camera.position.x = b.maxX + playerRadius;
+          break;
         }
       }
 
+      // 2. Movimiento en Z
+      camera.position.z += moveVector.z * speed;
+      playerBox = getPlayerAABB(camera.position);
+
+      for (const b of nearbyBlocks) {
+        if (isColliding(playerBox, b)) {
+          if (moveVector.z > 0) camera.position.z = b.minZ - playerRadius;
+          else if (moveVector.z < 0) camera.position.z = b.maxZ + playerRadius;
+          break;
+        }
+      }
+
+      // 3. Gravedad y Salto (Movimiento en Y)
       velocityY += gravity;
       if (keys['Space'] && isGrounded) {
         velocityY = jumpStrength;
@@ -341,19 +408,22 @@
       }
 
       camera.position.y += velocityY;
+      playerBox = getPlayerAABB(camera.position);
+      nearbyBlocks = getNearbyBlockBoxes(camera.position);
+      isGrounded = false;
 
-      const feetPos = camera.position.clone();
-      feetPos.y -= (playerHeight - 0.2);
-      
-      const downRay = new THREE.Raycaster(feetPos, new THREE.Vector3(0, -1, 0), 0, 0.3);
-      const hits = downRay.intersectObjects(blocks);
-
-      if (hits.length > 0 && velocityY <= 0) {
-        camera.position.y = hits[0].point.y + playerHeight;
-        velocityY = 0;
-        isGrounded = true;
-      } else {
-        isGrounded = false;
+      for (const b of nearbyBlocks) {
+        if (isColliding(playerBox, b)) {
+          if (velocityY < 0) {
+            camera.position.y = b.maxY + playerHeight;
+            velocityY = 0;
+            isGrounded = true;
+          } else if (velocityY > 0) {
+            camera.position.y = b.minY;
+            velocityY = 0;
+          }
+          break;
+        }
       }
 
       if (camera.position.y < -25) takeDamage(10);
@@ -375,19 +445,22 @@
           const typeId = target.userData.typeId || 1;
           inventory[typeId] = (inventory[typeId] || 0) + 1;
           updateInventoryUI();
-          scene.remove(target);
-          blocks.splice(blocks.indexOf(target), 1);
+          removeBlockFromWorld(target);
         } else if (e.button === 2) {
           if (inventory[selectedSlot] > 0) {
             const normal = hit.face.normal;
             const newPos = hit.object.position.clone().add(normal);
-            const newBlock = new THREE.Mesh(blockGeo, BLOCK_TYPES[selectedSlot].mat);
-            newBlock.position.copy(newPos);
-            newBlock.userData.typeId = selectedSlot;
-            scene.add(newBlock);
-            blocks.push(newBlock);
-            inventory[selectedSlot]--;
-            updateInventoryUI();
+            const x = Math.round(newPos.x);
+            const y = Math.round(newPos.y);
+            const z = Math.round(newPos.z);
+
+            // Comprobar si el bloque a colocar colisiona con el jugador
+            const newBlockBox = { minX: x - 0.5, maxX: x + 0.5, minY: y - 0.5, maxY: y + 0.5, minZ: z - 0.5, maxZ: z + 0.5 };
+            if (!isColliding(getPlayerAABB(camera.position), newBlockBox)) {
+              addBlockToWorld(x, y, z, selectedSlot);
+              inventory[selectedSlot]--;
+              updateInventoryUI();
+            }
           }
         }
       }
