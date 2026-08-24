@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi Clon de Minecraft - Hitbox Corregida</title>
+  <title>Mi Clon de Minecraft - Crafteo e Inventario</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -28,16 +28,8 @@
       flex-direction: column; align-items: center; gap: 5px; z-index: 10;
     }
 
-    #health-bar { 
-      display: flex; 
-      gap: 4px;
-    }
-
-    .pixel-heart {
-      width: 20px;
-      height: 20px;
-      image-rendering: pixelated;
-    }
+    #health-bar { display: flex; gap: 4px; }
+    .pixel-heart { width: 20px; height: 20px; image-rendering: pixelated; }
 
     #hotbar {
       position: absolute; bottom: 20px; left: 50%;
@@ -51,10 +43,9 @@
       width: 52px; height: 52px; border: 3px solid #555;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: white;
-      font-weight: bold; font-size: 8px; text-align: center;
+      font-weight: bold; font-size: 7px; text-align: center;
       box-sizing: border-box; position: relative; background: rgba(255,255,255,0.05);
-      line-height: 1.2;
-      text-shadow: 1px 1px 0px #000;
+      line-height: 1.2; text-shadow: 1px 1px 0px #000;
     }
 
     .slot.selected { 
@@ -63,15 +54,31 @@
       background: rgba(255,255,255,0.2);
     }
 
-    .slot span.key { 
-      position: absolute; top: 3px; left: 4px; 
-      font-size: 8px; color: #aaa; 
+    .slot span.key { position: absolute; top: 3px; left: 4px; font-size: 8px; color: #aaa; }
+    .slot span.count { position: absolute; bottom: 3px; right: 4px; font-size: 9px; color: #ffde59; }
+
+    /* Menú de Crafteo */
+    #crafting-menu {
+      display: none; position: absolute; top: 50%; left: 50%;
+      transform: translate(-50%, -50%); width: 420px;
+      background: rgba(30, 30, 30, 0.95); border: 4px solid #555;
+      color: white; padding: 15px; z-index: 30; flex-direction: column;
+      gap: 10px; image-rendering: pixelated; box-shadow: 0 0 20px #000;
     }
 
-    .slot span.count { 
-      position: absolute; bottom: 3px; right: 4px; 
-      font-size: 9px; color: #ffde59; 
+    #crafting-menu h2 { font-size: 12px; margin: 0 0 10px 0; text-align: center; color: #ffde59; }
+
+    .recipe-list { display: flex; flex-direction: column; gap: 8px; max-height: 250px; overflow-y: auto; }
+    .recipe-item {
+      display: flex; justify-content: space-between; align-items: center;
+      background: #222; padding: 8px; border: 2px solid #444; font-size: 8px;
     }
+
+    .recipe-btn {
+      background: #555; color: white; border: 2px solid #888;
+      font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px; cursor: pointer;
+    }
+    .recipe-btn:hover { background: #777; }
 
     #game-over {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
@@ -86,10 +93,9 @@
       box-shadow: 4px 4px 0px #000;
     }
 
-    #error-log {
-      position: absolute; top: 10px; right: 10px; color: #ff5555;
-      background: rgba(0,0,0,0.9); padding: 10px; display: none; z-index: 100;
-      font-size: 8px;
+    #instructions {
+      position: absolute; top: 10px; left: 10px; color: #fff;
+      font-size: 8px; background: rgba(0,0,0,0.6); padding: 8px; z-index: 10;
     }
   </style>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -97,17 +103,24 @@
 <body>
 
   <div id="crosshair"></div>
+  <div id="instructions">Presiona 'E' para Abrir Crafteo | Shift para Sprint</div>
 
   <div id="ui-container">
     <div id="health-bar"></div>
   </div>
 
   <div id="hotbar">
-    <div id="slot-1" class="slot selected"><span class="key">1</span>PASTO<span class="count" id="count-1">0</span></div>
-    <div id="slot-2" class="slot"><span class="key">2</span>TIERRA<span class="count" id="count-2">0</span></div>
-    <div id="slot-3" class="slot"><span class="key">3</span>PIEDRA<span class="count" id="count-3">0</span></div>
-    <div id="slot-4" class="slot"><span class="key">4</span>MADERA<span class="count" id="count-4">0</span></div>
-    <div id="slot-5" class="slot"><span class="key">5</span>HOJAS<span class="count" id="count-5">0</span></div>
+    <div id="slot-1" class="slot selected"><span class="key">1</span><span class="name">PASTO</span><span class="count" id="count-1">0</span></div>
+    <div id="slot-2" class="slot"><span class="key">2</span><span class="name">TIERRA</span><span class="count" id="count-2">0</span></div>
+    <div id="slot-3" class="slot"><span class="key">3</span><span class="name">PIEDRA</span><span class="count" id="count-3">0</span></div>
+    <div id="slot-4" class="slot"><span class="key">4</span><span class="name">MADERA</span><span class="count" id="count-4">0</span></div>
+    <div id="slot-5" class="slot"><span class="key">5</span><span class="name">HOJAS</span><span class="count" id="count-5">0</span></div>
+  </div>
+
+  <div id="crafting-menu">
+    <h2>MESA DE CRAFTEO</h2>
+    <div class="recipe-list" id="recipe-list"></div>
+    <p style="font-size: 7px; text-align: center; color: #aaa;">Presiona 'E' o ESC para cerrar</p>
   </div>
 
   <div id="game-over">
@@ -115,16 +128,8 @@
     <button onclick="respawnPlayer()">REAPARECER</button>
   </div>
 
-  <div id="error-log"></div>
-
   <script>
-    window.onerror = function(msg, url, line) {
-      const log = document.getElementById('error-log');
-      log.style.display = 'block';
-      log.innerHTML = `<b>Error:</b> ${msg} (Línea: ${line})`;
-    };
-
-    // 1. Escena e iluminación
+    // 1. Escena y Renderizado
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
 
@@ -140,7 +145,7 @@
     dirLight.position.set(20, 40, 20);
     scene.add(dirLight);
 
-    // 2. Texturas
+    // 2. Texturas e Ítems
     const textureLoader = new THREE.TextureLoader();
     function loadCustomTexture(path) {
       const texture = textureLoader.load(path);
@@ -154,15 +159,90 @@
       2: { name: "Tierra", mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/tierra.png') }) },
       3: { name: "Piedra", mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/piedra.png') }) },
       4: { name: "Madera", mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/madera.png') }) },
-      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/hojas.png'), transparent: true, alphaTest: 0.5 }) }
+      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/hojas.png'), transparent: true, alphaTest: 0.5 }) },
+      6: { name: "Tablas", mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/tablas.png') }) },
+      7: { name: "Mesa C.", mat: new THREE.MeshLambertMaterial({ map: loadCustomTexture('textures/mesacrafteo.png') }) },
+      8: { name: "Palo",   isItem: true },
+      9: { name: "Pico",   isItem: true },
+      10: { name: "Espada", isItem: true }
     };
 
-    // 3. Controles
+    // 3. Inventario y Crafteo
+    const inventory = { 1: 10, 2: 10, 3: 5, 4: 5, 5: 5, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
+    let selectedSlot = 1;
+
+    const recipes = [
+      { name: "Tablas x4", req: { 4: 1 }, give: { 6: 4 } },
+      { name: "Palos x4", req: { 6: 2 }, give: { 8: 4 } },
+      { name: "Mesa Crafteo", req: { 6: 4 }, give: { 7: 1 } },
+      { name: "Pico Piedra", req: { 3: 3, 8: 2 }, give: { 9: 1 } },
+      { name: "Espada Piedra", req: { 3: 2, 8: 1 }, give: { 10: 1 } }
+    ];
+
+    function updateInventoryUI() {
+      for (let i = 1; i <= 5; i++) {
+        const item = BLOCK_TYPES[i];
+        const slotEl = document.getElementById(`slot-${i}`);
+        slotEl.querySelector('.name').innerText = item ? item.name.toUpperCase() : "VACÍO";
+        document.getElementById(`count-${i}`).innerText = inventory[i] || 0;
+      }
+    }
+
+    function renderCraftingMenu() {
+      const list = document.getElementById('recipe-list');
+      list.innerHTML = "";
+      recipes.forEach((r, idx) => {
+        let canCraft = true;
+        let reqText = "";
+        for (let id in r.req) {
+          reqText += `${BLOCK_TYPES[id].name}: ${r.req[id]} `;
+          if ((inventory[id] || 0) < r.req[id]) canCraft = false;
+        }
+
+        const itemEl = document.createElement('div');
+        itemEl.className = 'recipe-item';
+        itemEl.innerHTML = `
+          <div>
+            <b>${r.name}</b><br>
+            <span style="color:#aaa;">Req: ${reqText}</span>
+          </div>
+          <button class="recipe-btn" ${canCraft ? '' : 'disabled'} onclick="craftItem(${idx})">CREAR</button>
+        `;
+        list.appendChild(itemEl);
+      });
+    }
+
+    window.craftItem = function(index) {
+      const r = recipes[index];
+      for (let id in r.req) {
+        if ((inventory[id] || 0) < r.req[id]) return;
+      }
+      for (let id in r.req) inventory[id] -= r.req[id];
+      for (let id in r.give) inventory[id] = (inventory[id] || 0) + r.give[id];
+      updateInventoryUI();
+      renderCraftingMenu();
+    };
+
+    let isCraftingOpen = false;
+    function toggleCraftingMenu() {
+      isCraftingOpen = !isCraftingOpen;
+      const menu = document.getElementById('crafting-menu');
+      if (isCraftingOpen) {
+        document.exitPointerLock();
+        renderCraftingMenu();
+        menu.style.display = 'flex';
+      } else {
+        menu.style.display = 'none';
+        document.body.requestPointerLock();
+      }
+    }
+
+    // 4. Controles y PointerLock
     let isLocked = false;
     let pitch = 0, yaw = 0;
 
     document.addEventListener('click', () => {
-      if (health > 0 && !isLocked) document.body.requestPointerLock();
+      if (health > 0 && !isLocked && !isCraftingOpen) document.body.requestPointerLock();
     });
 
     document.addEventListener('pointerlockchange', () => {
@@ -174,36 +254,20 @@
       yaw -= e.movementX * 0.002;
       pitch -= e.movementY * 0.002;
       pitch = Math.max(-Math.PI / 2 + 0.1, Math.min(Math.PI / 2 - 0.1, pitch));
-
-      const euler = new THREE.Euler(pitch, yaw, 0, 'YXZ');
-      camera.quaternion.setFromEuler(euler);
+      camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     });
 
-    // 4. Generación de Mundo
-    const inventory = { 1: 10, 2: 10, 3: 5, 4: 5, 5: 5 };
-    let selectedSlot = 1;
-
-    function updateInventoryUI() {
-      for (let i = 1; i <= 5; i++) {
-        document.getElementById(`count-${i}`).innerText = inventory[i];
-      }
-    }
-    updateInventoryUI();
-
+    // 5. Generación del Mundo
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
     const blockMap = new Map();
 
-    function getBlockKey(x, y, z) {
-      return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`;
-    }
-
-    function getTerrainHeight(x, z) {
-      return Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3 + Math.sin(x * 0.05 + z * 0.05) * 4);
-    }
+    function getBlockKey(x, y, z) { return `${Math.round(x)},${Math.round(y)},${Math.round(z)}`; }
+    function getTerrainHeight(x, z) { return Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3 + Math.sin(x * 0.05 + z * 0.05) * 4); }
 
     function addBlockToWorld(x, y, z, typeId) {
-      const cube = new THREE.Mesh(blockGeo, BLOCK_TYPES[typeId].mat);
+      const mat = BLOCK_TYPES[typeId]?.mat || BLOCK_TYPES[1].mat;
+      const cube = new THREE.Mesh(blockGeo, mat);
       cube.position.set(x, y, z);
       cube.userData.typeId = typeId;
       scene.add(cube);
@@ -220,20 +284,6 @@
       if (index > -1) blocks.splice(index, 1);
     }
 
-    function createTree(treeX, treeY, treeZ) {
-      for (let y = 1; y <= 4; y++) {
-        addBlockToWorld(treeX, treeY + y, treeZ, 4);
-      }
-      for (let lx = -1; lx <= 1; lx++) {
-        for (let lz = -1; lz <= 1; lz++) {
-          for (let ly = 4; ly <= 5; ly++) {
-            if (lx === 0 && lz === 0 && ly === 4) continue;
-            addBlockToWorld(treeX + lx, treeY + ly, treeZ + lz, 5);
-          }
-        }
-      }
-    }
-
     const WORLD_SIZE = 20;
     for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
       for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
@@ -242,23 +292,19 @@
           let typeId = 3;
           if (y === height) typeId = 1;
           else if (y >= height - 2) typeId = 2;
-
           addBlockToWorld(x, y, z, typeId);
-        }
-        if (Math.random() < 0.03 && Math.abs(x) > 2 && Math.abs(z) > 2) {
-          createTree(x, height, z);
         }
       }
     }
 
-    // 5. Jugador y Físicas
+    // 6. Físicas y Jugador
     let health = 10;
     const playerHeight = 1.6;
     const playerRadius = 0.3;
     camera.position.set(0, getTerrainHeight(0, 0) + 5, 0);
 
-    const redHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8" fill="none"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#ff2222"/></svg>`;
-    const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8" fill="none"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
+    const redHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#ff2222"/></svg>`;
+    const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
 
     function updateHealthUI() {
       let heartsHtml = "";
@@ -266,7 +312,6 @@
       for (let i = health; i < 10; i++) heartsHtml += emptyHeartSVG;
       document.getElementById('health-bar').innerHTML = heartsHtml;
     }
-    updateHealthUI();
 
     function takeDamage(amount) {
       if (health <= 0) return;
@@ -290,6 +335,7 @@
     const keys = {};
     document.addEventListener('keydown', (e) => {
       keys[e.code] = true;
+      if (e.code === 'KeyE') toggleCraftingMenu();
       if (e.code.startsWith('Digit')) {
         const num = parseInt(e.code.replace('Digit', ''));
         if (num >= 1 && num <= 5) selectSlot(num);
@@ -313,44 +359,29 @@
     const jumpStrength = 0.20;
     let isGrounded = false;
 
-    // Sistema de Colisión AABB por Ejes
     function getPlayerAABB(pos) {
       return {
-        minX: pos.x - playerRadius,
-        maxX: pos.x + playerRadius,
-        minY: pos.y - playerHeight,
-        maxY: pos.y,
-        minZ: pos.z - playerRadius,
-        maxZ: pos.z + playerRadius
+        minX: pos.x - playerRadius, maxX: pos.x + playerRadius,
+        minY: pos.y - playerHeight, maxY: pos.y,
+        minZ: pos.z - playerRadius, maxZ: pos.z + playerRadius
       };
     }
 
-    function isColliding(box1, box2) {
-      return (
-        box1.minX < box2.maxX && box1.maxX > box2.minX &&
-        box1.minY < box2.maxY && box1.maxY > box2.minY &&
-        box1.minZ < box2.maxZ && box1.maxZ > box2.minZ
-      );
+    function isColliding(b1, b2) {
+      return (b1.minX < b2.maxX && b1.maxX > b2.minX && b1.minY < b2.maxY && b1.maxY > b2.minY && b1.minZ < b2.maxZ && b1.maxZ > b2.minZ);
     }
 
     function getNearbyBlockBoxes(pos) {
       const blockBoxes = [];
-      const minX = Math.floor(pos.x - 1);
-      const maxX = Math.ceil(pos.x + 1);
-      const minY = Math.floor(pos.y - playerHeight - 1);
-      const maxY = Math.ceil(pos.y + 1);
-      const minZ = Math.floor(pos.z - 1);
-      const maxZ = Math.ceil(pos.z + 1);
+      const minX = Math.floor(pos.x - 1), maxX = Math.ceil(pos.x + 1);
+      const minY = Math.floor(pos.y - playerHeight - 1), maxY = Math.ceil(pos.y + 1);
+      const minZ = Math.floor(pos.z - 1), maxZ = Math.ceil(pos.z + 1);
 
       for (let x = minX; x <= maxX; x++) {
         for (let y = minY; y <= maxY; y++) {
           for (let z = minZ; z <= maxZ; z++) {
             if (blockMap.has(getBlockKey(x, y, z))) {
-              blockBoxes.push({
-                minX: x - 0.5, maxX: x + 0.5,
-                minY: y - 0.5, maxY: y + 0.5,
-                minZ: z - 0.5, maxZ: z + 0.5
-              });
+              blockBoxes.push({ minX: x - 0.5, maxX: x + 0.5, minY: y - 0.5, maxY: y + 0.5, minZ: z - 0.5, maxZ: z + 0.5 });
             }
           }
         }
@@ -375,7 +406,7 @@
         moveVector.applyEuler(new THREE.Euler(0, yaw, 0));
       }
 
-      // 1. Movimiento en X
+      // X
       camera.position.x += moveVector.x * speed;
       let playerBox = getPlayerAABB(camera.position);
       let nearbyBlocks = getNearbyBlockBoxes(camera.position);
@@ -388,7 +419,7 @@
         }
       }
 
-      // 2. Movimiento en Z
+      // Z
       camera.position.z += moveVector.z * speed;
       playerBox = getPlayerAABB(camera.position);
 
@@ -400,7 +431,7 @@
         }
       }
 
-      // 3. Gravedad y Salto (Movimiento en Y)
+      // Y (Gravedad)
       velocityY += gravity;
       if (keys['Space'] && isGrounded) {
         velocityY = jumpStrength;
@@ -429,7 +460,7 @@
       if (camera.position.y < -25) takeDamage(10);
     }
 
-    // 6. Romper y Poner Bloques
+    // 7. Interacción (Romper / Poner)
     const raycaster = new THREE.Raycaster();
     document.addEventListener('mousedown', (e) => {
       if (!isLocked || health <= 0) return;
@@ -447,6 +478,9 @@
           updateInventoryUI();
           removeBlockFromWorld(target);
         } else if (e.button === 2) {
+          // Si el objeto seleccionado no es un bloque utilizable en mapa, no poner nada
+          if (BLOCK_TYPES[selectedSlot]?.isItem) return;
+
           if (inventory[selectedSlot] > 0) {
             const normal = hit.face.normal;
             const newPos = hit.object.position.clone().add(normal);
@@ -454,7 +488,6 @@
             const y = Math.round(newPos.y);
             const z = Math.round(newPos.z);
 
-            // Comprobar si el bloque a colocar colisiona con el jugador
             const newBlockBox = { minX: x - 0.5, maxX: x + 0.5, minY: y - 0.5, maxY: y + 0.5, minZ: z - 0.5, maxZ: z + 0.5 };
             if (!isColliding(getPlayerAABB(camera.position), newBlockBox)) {
               addBlockToWorld(x, y, z, selectedSlot);
@@ -473,6 +506,10 @@
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
+
+    // Inicialización
+    updateHealthUI();
+    updateInventoryUI();
 
     function animate() {
       requestAnimationFrame(animate);
