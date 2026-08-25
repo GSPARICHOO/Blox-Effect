@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi Clon de Minecraft - Colores Planos y Límite de Colina</title>
+  <title>Mi Clon de Minecraft - Con Texturas Reales</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -19,7 +19,6 @@
       width: 8px; height: 8px; background: white;
       transform: translate(-50%, -50%);
       pointer-events: none; mix-blend-mode: difference; z-index: 10;
-      image-rendering: pixelated;
     }
 
     #ui-container {
@@ -36,14 +35,13 @@
       transform: translateX(-50%); display: flex; gap: 6px;
       background: rgba(0, 0, 0, 0.85); padding: 6px; 
       border: 4px solid #333; z-index: 10;
-      image-rendering: pixelated;
     }
 
     .slot {
       width: 52px; height: 52px; border: 3px solid #555;
       display: flex; flex-direction: column;
       align-items: center; justify-content: center; color: white;
-      font-weight: bold; font-size: 7px; text-align: center;
+      font-size: 7px; text-align: center;
       box-sizing: border-box; position: relative; background: rgba(255,255,255,0.05);
       line-height: 1.2; text-shadow: 1px 1px 0px #000;
     }
@@ -62,7 +60,7 @@
       transform: translate(-50%, -50%); width: 420px;
       background: rgba(30, 30, 30, 0.95); border: 4px solid #555;
       color: white; padding: 15px; z-index: 30; flex-direction: column;
-      gap: 10px; image-rendering: pixelated; box-shadow: 0 0 20px #000;
+      gap: 10px; box-shadow: 0 0 20px #000;
     }
 
     #crafting-menu h2 { font-size: 12px; margin: 0 0 10px 0; text-align: center; color: #ffde59; }
@@ -77,19 +75,16 @@
       background: #555; color: white; border: 2px solid #888;
       font-family: 'Press Start 2P', monospace; font-size: 8px; padding: 6px; cursor: pointer;
     }
-    .recipe-btn:hover { background: #777; }
 
     #game-over {
       display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%;
       background: rgba(150, 0, 0, 0.85); color: white; flex-direction: column;
       justify-content: center; align-items: center; font-size: 20px; z-index: 20;
-      text-shadow: 3px 3px 0px #000;
     }
 
     #game-over button {
       margin-top: 25px; padding: 12px 24px; font-size: 12px; cursor: pointer;
       border: 4px solid #000; background: #fff; font-family: 'Press Start 2P', monospace;
-      box-shadow: 4px 4px 0px #000;
     }
 
     #instructions {
@@ -102,7 +97,7 @@
 <body>
 
   <div id="crosshair"></div>
-  <div id="instructions">Presiona 'E' para Abrir Crafteo | Zona limitada al subir la colina</div>
+  <div id="instructions">Presiona 'E' para Abrir Crafteo | Movimiento Libre</div>
 
   <div id="ui-container">
     <div id="health-bar"></div>
@@ -128,7 +123,7 @@
   </div>
 
   <script>
-    // 1. Escena y Renderizado
+    // 1. Escena y Configuración
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x87ceeb);
 
@@ -137,28 +132,57 @@
     renderer.setSize(window.innerWidth, window.innerHeight);
     document.body.appendChild(renderer.domElement);
 
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.7);
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     scene.add(ambientLight);
 
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.6);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.5);
     dirLight.position.set(20, 40, 20);
     scene.add(dirLight);
 
-    // 2. Materiales sin Texturas (Colores Planos Solamente)
+    // Cargar Texturas desde URLs externas
+    const textureLoader = new THREE.TextureLoader();
+
+    function loadTexture(url) {
+      const tex = textureLoader.load(url);
+      tex.magFilter = THREE.NearestFilter; // Mantener aspecto pixeleado
+      tex.minFilter = THREE.NearestFilter;
+      return tex;
+    }
+
+    // URLs de texturas de estilo Minecraft
+    const textures = {
+      pasto: loadTexture('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/grass.png'),
+      pastoLado: loadTexture('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/grass_dirt.png'),
+      tierra: loadTexture('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/dirt.png'),
+      piedra: loadTexture('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/stone.png'),
+      madera: loadTexture('https://raw.githubusercontent.com/mrdoob/three.js/dev/examples/textures/minecraft/wood.png')
+    };
+
+    // Materiales asignados
     const BLOCK_TYPES = {
-      1: { name: "Pasto",  mat: new THREE.MeshLambertMaterial({ color: 0x4caf50 }) }, // Verde
-      2: { name: "Tierra", mat: new THREE.MeshLambertMaterial({ color: 0x795548 }) }, // Café
-      3: { name: "Piedra", mat: new THREE.MeshLambertMaterial({ color: 0x9e9e9e }) }, // Gris
-      4: { name: "Madera", mat: new THREE.MeshLambertMaterial({ color: 0x5d4037 }) }, // Madera oscura
-      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ color: 0x2e7d32 }) }, // Verde oscuro
-      6: { name: "Tablas", mat: new THREE.MeshLambertMaterial({ color: 0xd7ccc8 }) }, // Madera clara
-      7: { name: "Mesa C.", mat: new THREE.MeshLambertMaterial({ color: 0xffb74d }) }, // Naranja/Madera
+      1: { 
+        name: "Pasto", 
+        mat: [
+          new THREE.MeshLambertMaterial({ map: textures.pastoLado }), // derecha
+          new THREE.MeshLambertMaterial({ map: textures.pastoLado }), // izquierda
+          new THREE.MeshLambertMaterial({ map: textures.pasto }),     // arriba
+          new THREE.MeshLambertMaterial({ map: textures.tierra }),    // abajo
+          new THREE.MeshLambertMaterial({ map: textures.pastoLado }), // frente
+          new THREE.MeshLambertMaterial({ map: textures.pastoLado })  // atrás
+        ]
+      },
+      2: { name: "Tierra", mat: new THREE.MeshLambertMaterial({ map: textures.tierra }) },
+      3: { name: "Piedra", mat: new THREE.MeshLambertMaterial({ map: textures.piedra }) },
+      4: { name: "Madera", mat: new THREE.MeshLambertMaterial({ map: textures.madera }) },
+      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ color: 0x2e7d32, transparent: true, opacity: 0.85 }) },
+      6: { name: "Tablas", mat: new THREE.MeshLambertMaterial({ color: 0xc19a6b }) },
+      7: { name: "Mesa C.", mat: new THREE.MeshLambertMaterial({ color: 0x8b5a2b }) },
       8: { name: "Palo",   isItem: true },
       9: { name: "Pico",   isItem: true },
       10: { name: "Espada", isItem: true }
     };
 
-    // 3. Inventario y Crafteo
+    // Inventario
     const inventory = { 1: 10, 2: 10, 3: 5, 4: 5, 5: 5, 6: 0, 7: 0, 8: 0, 9: 0, 10: 0 };
     let selectedSlot = 1;
 
@@ -228,7 +252,7 @@
       }
     }
 
-    // 4. Controles
+    // Controles de Cámara
     let isLocked = false;
     let pitch = 0, yaw = 0;
 
@@ -248,7 +272,7 @@
       camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     });
 
-    // 5. Generación del Mundo
+    // Mundo
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
     const blockMap = new Map();
@@ -259,7 +283,7 @@
     function addBlockToWorld(x, y, z, typeId) {
       if (blockMap.has(getBlockKey(x, y, z))) return;
 
-      const mat = BLOCK_TYPES[typeId]?.mat || BLOCK_TYPES[1].mat;
+      const mat = BLOCK_TYPES[typeId]?.mat || BLOCK_TYPES[2].mat;
       const cube = new THREE.Mesh(blockGeo, mat);
       cube.position.set(Math.round(x), Math.round(y), Math.round(z));
       cube.userData.typeId = typeId;
@@ -293,7 +317,7 @@
       }
     }
 
-    const WORLD_SIZE = 24;
+    const WORLD_SIZE = 28;
     for (let x = -WORLD_SIZE / 2; x < WORLD_SIZE / 2; x++) {
       for (let z = -WORLD_SIZE / 2; z < WORLD_SIZE / 2; z++) {
         const height = getTerrainHeight(x, z);
@@ -310,14 +334,11 @@
       }
     }
 
-    // 6. Físicas, Hitbox y Límite de la Colina
+    // Físicas del jugador
     let health = 10;
     const playerHeight = 1.6;
     const playerRadius = 0.25;
     camera.position.set(0, getTerrainHeight(0, 0) + 5, 0);
-
-    // Límite en el eje Z para cortar el paso hacia la colina
-    const HILL_LIMIT_Z = 3; 
 
     const redHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#ff2222"/></svg>`;
     const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
@@ -414,8 +435,7 @@
     function updatePhysics() {
       if (!isLocked || health <= 0) return;
 
-      const baseSpeed = 0.08;
-      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? baseSpeed * 1.5 : baseSpeed;
+      const speed = (keys['ShiftLeft'] || keys['ShiftRight']) ? 0.12 : 0.08;
 
       const moveVector = new THREE.Vector3();
       if (keys['KeyW']) moveVector.z -= 1;
@@ -441,25 +461,19 @@
         }
       }
 
-      // Eje Z con Límite Invisible en la Colina
+      // Eje Z
       camera.position.z += moveVector.z * speed;
-      
-      // Restricción: No se puede avanzar más allá del inicio de la colina
-      if (camera.position.z > HILL_LIMIT_Z) {
-        camera.position.z = HILL_LIMIT_Z;
-      }
-
       playerBox = getPlayerAABB(camera.position);
 
       for (const b of nearbyBlocks) {
         if (isColliding(playerBox, b)) {
           if (moveVector.z > 0) camera.position.z = b.minZ - playerRadius;
-          else if (moveVector.z < 0) camera.position.z = b.maxX + playerRadius;
+          else if (moveVector.z < 0) camera.position.z = b.maxZ + playerRadius;
           playerBox = getPlayerAABB(camera.position);
         }
       }
 
-      // Eje Y (Gravedad)
+      // Gravedad y Salto
       velocityY += gravity;
       if (keys['Space'] && isGrounded) {
         velocityY = jumpStrength;
@@ -488,7 +502,7 @@
       if (camera.position.y < -25) takeDamage(10);
     }
 
-    // 7. Interacciones
+    // Interacción
     const raycaster = new THREE.Raycaster();
     document.addEventListener('mousedown', (e) => {
       if (!isLocked || health <= 0) return;
@@ -535,7 +549,6 @@
       renderer.setSize(window.innerWidth, window.innerHeight);
     });
 
-    // Inicialización
     updateHealthUI();
     updateInventoryUI();
 
