@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <title>Mi Clon de Minecraft - Con Árboles y Hitbox Fix</title>
+  <title>Mi Clon de Minecraft - Colores Planos y Límite de Colina</title>
   <style>
     @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
 
@@ -102,7 +102,7 @@
 <body>
 
   <div id="crosshair"></div>
-  <div id="instructions">Presiona 'E' para Abrir Crafteo | Shift para Sprint</div>
+  <div id="instructions">Presiona 'E' para Abrir Crafteo | Zona limitada al subir la colina</div>
 
   <div id="ui-container">
     <div id="health-bar"></div>
@@ -144,15 +144,15 @@
     dirLight.position.set(20, 40, 20);
     scene.add(dirLight);
 
-    // 2. Materiales de Bloques
+    // 2. Materiales sin Texturas (Colores Planos Solamente)
     const BLOCK_TYPES = {
-      1: { name: "Pasto",  mat: new THREE.MeshLambertMaterial({ color: 0x557a2b }) },
-      2: { name: "Tierra", mat: new THREE.MeshLambertMaterial({ color: 0x8b5a2b }) },
-      3: { name: "Piedra", mat: new THREE.MeshLambertMaterial({ color: 0x808080 }) },
-      4: { name: "Madera", mat: new THREE.MeshLambertMaterial({ color: 0x5c4033 }) },
-      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ color: 0x2e8b57, transparent: true, opacity: 0.9 }) },
-      6: { name: "Tablas", mat: new THREE.MeshLambertMaterial({ color: 0xa0522d }) },
-      7: { name: "Mesa C.", mat: new THREE.MeshLambertMaterial({ color: 0xcd853f }) },
+      1: { name: "Pasto",  mat: new THREE.MeshLambertMaterial({ color: 0x4caf50 }) }, // Verde
+      2: { name: "Tierra", mat: new THREE.MeshLambertMaterial({ color: 0x795548 }) }, // Café
+      3: { name: "Piedra", mat: new THREE.MeshLambertMaterial({ color: 0x9e9e9e }) }, // Gris
+      4: { name: "Madera", mat: new THREE.MeshLambertMaterial({ color: 0x5d4037 }) }, // Madera oscura
+      5: { name: "Hojas",  mat: new THREE.MeshLambertMaterial({ color: 0x2e7d32 }) }, // Verde oscuro
+      6: { name: "Tablas", mat: new THREE.MeshLambertMaterial({ color: 0xd7ccc8 }) }, // Madera clara
+      7: { name: "Mesa C.", mat: new THREE.MeshLambertMaterial({ color: 0xffb74d }) }, // Naranja/Madera
       8: { name: "Palo",   isItem: true },
       9: { name: "Pico",   isItem: true },
       10: { name: "Espada", isItem: true }
@@ -248,7 +248,7 @@
       camera.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, 0, 'YXZ'));
     });
 
-    // 5. Generación del Mundo y Árboles
+    // 5. Generación del Mundo
     const blockGeo = new THREE.BoxGeometry(1, 1, 1);
     const blocks = [];
     const blockMap = new Map();
@@ -257,7 +257,7 @@
     function getTerrainHeight(x, z) { return Math.floor(Math.sin(x * 0.15) * Math.cos(z * 0.15) * 3 + Math.sin(x * 0.05 + z * 0.05) * 4); }
 
     function addBlockToWorld(x, y, z, typeId) {
-      if (blockMap.has(getBlockKey(x, y, z))) return; // Evita solapamientos
+      if (blockMap.has(getBlockKey(x, y, z))) return;
 
       const mat = BLOCK_TYPES[typeId]?.mat || BLOCK_TYPES[1].mat;
       const cube = new THREE.Mesh(blockGeo, mat);
@@ -279,17 +279,15 @@
 
     function generateTree(x, startY, z) {
       const trunkHeight = 4;
-      // Tronco
       for (let y = 0; y < trunkHeight; y++) {
-        addBlockToWorld(x, startY + y, z, 4); // Madera
+        addBlockToWorld(x, startY + y, z, 4);
       }
-      // Hojas
       const leafBase = startY + trunkHeight - 1;
       for (let lx = -1; lx <= 1; lx++) {
         for (let lz = -1; lz <= 1; lz++) {
           for (let ly = 0; ly <= 2; ly++) {
-            if (lx === 0 && lz === 0 && ly < 2) continue; // No reemplaza el tronco
-            addBlockToWorld(x + lx, leafBase + ly, z + lz, 5); // Hojas
+            if (lx === 0 && lz === 0 && ly < 2) continue;
+            addBlockToWorld(x + lx, leafBase + ly, z + lz, 5);
           }
         }
       }
@@ -306,21 +304,23 @@
           addBlockToWorld(x, y, z, typeId);
         }
 
-        // Probabilidad de generar un árbol en terreno llano
         if (Math.random() < 0.03 && Math.abs(x) > 2 && Math.abs(z) > 2) {
           generateTree(x, height + 1, z);
         }
       }
     }
 
-    // 6. Físicas y Hitbox Corregidas
+    // 6. Físicas, Hitbox y Límite de la Colina
     let health = 10;
     const playerHeight = 1.6;
-    const playerRadius = 0.25; // Hitbox más delgada para no quedarse trabado
+    const playerRadius = 0.25;
     camera.position.set(0, getTerrainHeight(0, 0) + 5, 0);
 
+    // Límite en el eje Z para cortar el paso hacia la colina
+    const HILL_LIMIT_Z = 3; 
+
     const redHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#ff2222"/></svg>`;
-    const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM3 6h2v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
+    const emptyHeartSVG = `<svg class="pixel-heart" viewBox="0 0 8 8"><path d="M1 1h2v1h-2zM5 1h2v1h-2zM0 2h4v1h-4zM4 2h4v1h-4zM0 3h8v1h-8zM1 4h6v1h-6zM2 5h4v1h-4zM3 6h2v1h-2z" fill="#333333"/></svg>`;
 
     function updateHealthUI() {
       let heartsHtml = "";
@@ -375,7 +375,6 @@
     const jumpStrength = 0.18;
     let isGrounded = false;
 
-    // AABB (Bounding Box) centrado en bloques
     function getPlayerAABB(pos) {
       return {
         minX: pos.x - playerRadius, maxX: pos.x + playerRadius,
@@ -442,14 +441,20 @@
         }
       }
 
-      // Eje Z
+      // Eje Z con Límite Invisible en la Colina
       camera.position.z += moveVector.z * speed;
+      
+      // Restricción: No se puede avanzar más allá del inicio de la colina
+      if (camera.position.z > HILL_LIMIT_Z) {
+        camera.position.z = HILL_LIMIT_Z;
+      }
+
       playerBox = getPlayerAABB(camera.position);
 
       for (const b of nearbyBlocks) {
         if (isColliding(playerBox, b)) {
           if (moveVector.z > 0) camera.position.z = b.minZ - playerRadius;
-          else if (moveVector.z < 0) camera.position.z = b.maxZ + playerRadius;
+          else if (moveVector.z < 0) camera.position.z = b.maxX + playerRadius;
           playerBox = getPlayerAABB(camera.position);
         }
       }
@@ -494,7 +499,6 @@
       if (intersects.length > 0) {
         const hit = intersects[0];
 
-        // Click Izquierdo: Romper Bloque
         if (e.button === 0) {
           const target = hit.object;
           const typeId = target.userData.typeId || 1;
@@ -502,7 +506,6 @@
           updateInventoryUI();
           removeBlockFromWorld(target);
         } 
-        // Click Derecho: Colocar Bloque
         else if (e.button === 2) {
           if (BLOCK_TYPES[selectedSlot]?.isItem) return;
 
